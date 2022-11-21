@@ -1,0 +1,12 @@
+{
+  "name": "aoc",
+  "version": "1.0.0",
+  "main": "aoc.js",
+  "license": "MIT",
+  "dependencies": {
+    "jsdom": "^18.1.1",
+    "node-fetch": "^2.0.0",
+    "node-html-markdown": "^1.1.3",
+    "replace-in-file": "^6.3.2"
+  }
+}
