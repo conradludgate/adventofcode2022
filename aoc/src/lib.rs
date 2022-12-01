@@ -1,8 +1,5 @@
 use std::{fmt::Display, path::Path};
 
-use reqwest::header;
-use serde::Serialize;
-
 const YEAR: usize = 2021;
 
 pub trait Parser<'i>: Sized + Challenge {
@@ -12,10 +9,10 @@ pub trait Parser<'i>: Sized + Challenge {
 pub trait Challenge {
     const NAME: &'static str;
 
-    type Output1: Serialize + Display;
+    type Output1: Display;
     fn part_one(self) -> Self::Output1;
 
-    type Output2: Serialize + Display;
+    type Output2: Display;
     fn part_two(self) -> Self::Output2;
 }
 
@@ -44,26 +41,17 @@ pub fn run<'i, P: Parser<'i>>(input: &'i str) {
     }
 }
 
-fn submit<C: Challenge, S: Serialize>(level: usize, answer: S) {
+fn submit<C: Challenge, S: Display>(level: usize, answer: S) {
     let session = dotenv::var("AOC_SESSION").unwrap();
-    let mut headers = header::HeaderMap::new();
-    headers.insert(
-        header::COOKIE,
-        header::HeaderValue::from_str(&format!("session={}", session)).unwrap(),
-    );
-    let client = reqwest::blocking::Client::builder()
-        .default_headers(headers)
-        .build()
-        .unwrap();
 
     let day = C::NAME[3..].parse::<i32>().unwrap();
     let url = format!("https://adventofcode.com/{}/day/{}/answer", YEAR, day);
 
-    client.post(url).form(&QuestionResult { level, answer }).send().unwrap();
-}
-
-#[derive(Serialize)]
-struct QuestionResult<T: Serialize> {
-    level: usize,
-    answer: T,
+    ureq::post(&url)
+        .set("Cookie", &format!("session={session}"))
+        .send_form(&[
+            ("level", &format!("{level}")),
+            ("answer", &format!("{answer}")),
+        ])
+        .unwrap();
 }

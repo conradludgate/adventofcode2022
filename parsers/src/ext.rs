@@ -4,16 +4,20 @@ use nom::{error::FromExternalError, IResult, Parser};
 
 pub use self::{
     map_res::MapRes,
+    separated_array::Array,
     separated_array::SeperatedArray,
+    separated_list::Many1,
     separated_list::{SeperatedList0, SeperatedList1},
     skip::{PrecededBy, Skip},
+    terminated_list::TerminatedList0,
+    terminated_list::TerminatedList1,
 };
-use self::{separated_array::Array, separated_list::Many1};
 
 mod map_res;
 mod separated_array;
 mod separated_list;
 mod skip;
+mod terminated_list;
 
 pub struct Noop;
 
@@ -56,6 +60,18 @@ pub trait ParserExt<I, O, E>: Parser<I, O, E> {
         Self: Sized,
     {
         SeperatedList1 {
+            f: self,
+            g,
+            _output: PhantomData,
+        }
+    }
+
+    fn terminate_list1<G, O2, C>(self, g: G) -> TerminatedList1<Self, G, O, O2, C>
+    where
+        G: Parser<I, O2, E>,
+        Self: Sized,
+    {
+        TerminatedList1 {
             f: self,
             g,
             _output: PhantomData,
