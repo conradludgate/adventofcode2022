@@ -6,7 +6,7 @@ pub struct Day00<'i>(&'i str);
 
 impl<'i> ChallengeParser<'i> for Day00<'i> {
     fn parse(input: &'i str) -> IResult<&'i str, Self> {
-        tag("").map(Day00).parse(input)
+        tag("").map(Self).parse(input)
     }
 }
 

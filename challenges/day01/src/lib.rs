@@ -1,17 +1,39 @@
+use std::cmp;
+
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::{character::complete::line_ending, IResult, Parser};
 use parsers::{number, ParserExt};
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day01(Vec<Vec<usize>>);
+pub struct Day01(Vec<usize>);
+
+#[derive(Default)]
+struct Sum(usize);
+
+impl Extend<usize> for Sum {
+    fn extend<T: IntoIterator<Item = usize>>(&mut self, iter: T) {
+        for i in iter {
+            self.0 += i;
+        }
+    }
+}
 
 impl<'i> ChallengeParser<'i> for Day01 {
     fn parse(input: &'i str) -> IResult<&'i str, Self> {
-        number::<usize>
-            .terminate_list1(line_ending)
-            .separated_list1(line_ending)
-            .map(Day01)
+        number::<usize> // numbers
+            .terminate_list1(line_ending) // terminated by new lines
+            .map(|Sum(s)| s) // which are summed together
+            .separated_list1(line_ending) // number groups are separated by more lines
+            .map(Self)
             .parse(input)
+    }
+}
+
+impl Day01 {
+    fn solve(mut self, n: usize) -> Vec<usize> {
+        self.0.select_nth_unstable_by_key(n-1, |x| cmp::Reverse(*x));
+        self.0.truncate(n);
+        self.0
     }
 }
 
@@ -20,18 +42,12 @@ impl Challenge for Day01 {
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
-        self.0.into_iter().map(|x| x.into_iter().sum::<usize>()).max().unwrap()
+        self.solve(1).swap_remove(0)
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        let mut x = self
-            .0
-            .into_iter()
-            .map(|x| x.into_iter().sum::<usize>())
-            .collect::<Vec<_>>();
-        x.sort();
-        x[x.len() - 3..].iter().sum()
+        self.solve(3).into_iter().sum()
     }
 }
 
