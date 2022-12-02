@@ -50,21 +50,15 @@ impl Goal {
             Goal::Win => Rps::S,
         }
     }
-    fn should_play(self, against: Rps) -> Rps {
-        match (self, against) {
-            (Goal::Lose, Rps::P) | (Goal::Draw, Rps::R) | (Goal::Win, Rps::S) => Rps::R,
-            (Goal::Lose, Rps::S) | (Goal::Draw, Rps::P) | (Goal::Win, Rps::R) => Rps::P,
-            (Goal::Lose, Rps::R) | (Goal::Draw, Rps::S) | (Goal::Win, Rps::P) => Rps::S,
-        }
+    fn score_against(self, against: Rps) -> usize {
+        // magic
+        (self as usize / 3 + against as usize + 1) % 3 + 1 + self as usize
     }
 }
 impl Rps {
-    fn outcome(self, against: Self) -> Goal {
-        match (self, against) {
-            (Rps::R, Rps::R) | (Rps::P, Rps::P) | (Rps::S, Rps::S) => Goal::Draw,
-            (Rps::R, Rps::P) | (Rps::P, Rps::S) | (Rps::S, Rps::R) => Goal::Lose,
-            (Rps::R, Rps::S) | (Rps::P, Rps::R) | (Rps::S, Rps::P) => Goal::Win,
-        }
+    fn score_against(self, against: Self) -> usize {
+        // magic
+        (self as isize - against as isize + 4) as usize % 3 * 3 + self as usize
     }
 }
 
@@ -87,7 +81,7 @@ impl Challenge for Day02 {
     fn part_one(self) -> Self::Output1 {
         self.0
             .into_iter()
-            .map(|(against, player)| player.part1() as usize + player.part1().outcome(against) as usize)
+            .map(|(against, player)| player.part1().score_against(against))
             .sum()
     }
 
@@ -95,7 +89,7 @@ impl Challenge for Day02 {
     fn part_two(self) -> Self::Output2 {
         self.0
             .into_iter()
-            .map(|(against, goal)| goal as usize + goal.should_play(against) as usize)
+            .map(|(against, goal)| goal.score_against(against))
             .sum()
     }
 }
