@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 dotenv = "0.15"
 nom = "7.1"
-ureq = { version = "2.5" }
+ureq = { version = "2.5", features = ["native-certs"] }
