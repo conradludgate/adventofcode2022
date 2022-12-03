@@ -26,7 +26,7 @@ impl<'i> Challenge for Day03<'i> {
             let (a, b) = i.split_at(i.len() / 2);
             let a = bitset(a.as_bytes());
             let b = bitset(b.as_bytes());
-            errors += (a & b).trailing_zeros() as usize + 1;
+            errors += (a & b).trailing_zeros() as usize;
         }
         errors
     }
@@ -38,7 +38,7 @@ impl<'i> Challenge for Day03<'i> {
             let a = bitset(a.as_bytes());
             let b = bitset(b.as_bytes());
             let c = bitset(c.as_bytes());
-            badges += (a & b & c).trailing_zeros() as usize + 1;
+            badges += (a & b & c).trailing_zeros() as usize;
         }
         badges
     }
@@ -46,12 +46,19 @@ impl<'i> Challenge for Day03<'i> {
 
 fn bitset(x: &[u8]) -> usize {
     let mut set = 0;
-    for &x in x {
-        if x > b'Z' {
-            set |= 1 << (x - b'a') as u32
-        } else {
-            set |= 1 << ((x - b'A') as u32 + 26)
+    const LUT: [u8; 256] = {
+        let mut lut = [0; 256];
+        let mut i = 0;
+        while i < 26 {
+            lut[(i + b'a') as usize] = i + 1;
+            lut[(i + b'A') as usize] = i + 27;
+            i += 1;
         }
+        lut
+    };
+
+    for &x in x {
+        set |= 1 << LUT[x as usize];
     }
     set
 }
