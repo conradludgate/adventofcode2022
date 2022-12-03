@@ -1,6 +1,7 @@
 #![feature(array_chunks)]
 
 use aoc::{Challenge, Parser as ChallengeParser};
+use arrayvec::ArrayVec;
 use nom::{
     character::complete::{alpha1, line_ending},
     IResult, Parser,
@@ -24,23 +25,11 @@ impl<'i> Challenge for Day03<'i> {
         let mut errors = 0;
 
         for i in self.0 {
-            let (first, second) = i.split_at(i.len() / 2);
-            let mut first = first.as_bytes().to_vec();
-            first.sort();
-            let mut last = 0;
-            for b in first {
-                if b == last {
-                    continue;
-                }
-                last = b;
-                if second.as_bytes().contains(&b) {
-                    if b > b'Z' {
-                        errors += (b - b'a') as usize + 1;
-                    } else {
-                        errors += (b - b'A') as usize + 27;
-                    }
-                }
-            }
+            let (a, b) = i.split_at(i.len() / 2);
+            let mut a = a.as_bytes().to_vec();
+            let mut b = b.as_bytes().to_vec();
+            let x = SharedIter::new([&mut a, &mut b]).next().unwrap();
+            errors += value(x);
         }
         errors
     }
@@ -48,34 +37,71 @@ impl<'i> Challenge for Day03<'i> {
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
         let mut badges = 0;
-
-        'main: for [a, b, c] in self.0.array_chunks() {
+        for [a, b, c] in self.0.array_chunks() {
             let mut a = a.as_bytes().to_vec();
             let mut b = b.as_bytes().to_vec();
             let mut c = c.as_bytes().to_vec();
-            a.sort();
-            b.sort();
-            c.sort();
-            let (mut i, mut j, mut k) = (0, 0, 0);
-            while i < a.len() && j < b.len() && k < c.len() {
-                if a[i] == b[j] && a[i] == c[k] {
-                    let x = a[i];
-                    if x > b'Z' {
-                        badges += (x - b'a') as usize + 1;
-                    } else {
-                        badges += (x - b'A') as usize + 27;
-                    }
-                    continue 'main;
-                } else if a[i] <= b[j] && a[i] <= c[k] {
-                    i += 1;
-                } else if b[j] <= a[i] && b[j] <= c[k] {
-                    j += 1
-                } else if c[k] <= a[i] && c[k] < b[j] {
-                    k += 1;
+            let x = SharedIter::new([&mut a, &mut b, &mut c]).next().unwrap();
+            badges += value(x);
+        }
+        badges
+    }
+}
+
+fn value(x: u8) -> usize {
+    if x > b'Z' {
+        (x - b'a') as usize + 1
+    } else {
+        (x - b'A') as usize + 27
+    }
+}
+
+/// an iterator that finds matches in a set of bytes
+struct SharedIter<'a, const N: usize> {
+    data: [&'a [u8]; N],
+}
+
+impl<'a, const N: usize> SharedIter<'a, N> {
+    fn new(data: [&'a mut [u8]; N]) -> Self {
+        SharedIter {
+            data: data.map(|x| {
+                x.sort();
+                &*x
+            }),
+        }
+    }
+}
+
+impl<const N: usize> Iterator for SharedIter<'_, N> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut splits = ArrayVec::<_, N>::new();
+        // split off the first byte of each subslice
+        for i in 0..N {
+            let (a, rest) = self.data[i].split_first()?;
+            splits.push((*a, rest));
+        }
+        loop {
+            // find the min of all first elements
+            let min = splits.iter().map(|x| x.0).min().unwrap();
+            // if all elements equal min
+            if splits.iter().all(|x| x.0 == min) {
+                // progress all internal states
+                for i in 0..N {
+                    self.data[i] = splits[i].1;
+                }
+                return Some(min);
+            }
+            // progress each that matches min
+            for i in 0..N {
+                if splits[i].0 == min {
+                    self.data[i] = splits[i].1;
+                    let (a, rest) = self.data[i].split_first()?;
+                    splits[i] = (*a, rest);
                 }
             }
         }
-        badges
     }
 }
 
