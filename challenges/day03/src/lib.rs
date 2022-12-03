@@ -1,7 +1,6 @@
 #![feature(array_chunks)]
 
 use aoc::{Challenge, Parser as ChallengeParser};
-use arrayvec::ArrayVec;
 use nom::{
     character::complete::{alpha1, line_ending},
     IResult, Parser,
@@ -23,12 +22,11 @@ impl<'i> Challenge for Day03<'i> {
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
         let mut errors = 0;
-
         for i in self.0 {
             let (a, b) = i.split_at(i.len() / 2);
-            let a = a.as_bytes().to_vec();
-            let b = b.as_bytes().to_vec();
-            errors += value(SharedIter::new([a, b]).next().unwrap());
+            let a = bitset(a.as_bytes());
+            let b = bitset(b.as_bytes());
+            errors += (a & b).trailing_zeros() as usize + 1;
         }
         errors
     }
@@ -37,77 +35,25 @@ impl<'i> Challenge for Day03<'i> {
     fn part_two(self) -> Self::Output2 {
         let mut badges = 0;
         for [a, b, c] in self.0.array_chunks() {
-            let a = a.as_bytes().to_vec();
-            let b = b.as_bytes().to_vec();
-            let c = c.as_bytes().to_vec();
-            let x = SharedIter::new([a, b, c]).next().unwrap();
-            badges += value(x);
+            let a = bitset(a.as_bytes());
+            let b = bitset(b.as_bytes());
+            let c = bitset(c.as_bytes());
+            badges += (a & b & c).trailing_zeros() as usize + 1;
         }
         badges
     }
 }
 
-fn value(x: u8) -> usize {
-    if x > b'Z' {
-        (x - b'a') as usize + 1
-    } else {
-        (x - b'A') as usize + 27
-    }
-}
-
-/// an iterator that finds matches in a set of bytes
-struct SharedIter<const N: usize> {
-    data: [Vec<u8>; N],
-}
-
-impl<const N: usize> SharedIter<N> {
-    fn new(data: [Vec<u8>; N]) -> Self {
-        SharedIter {
-            data: data.map(|mut x| {
-                x.sort();
-                x
-            }),
+fn bitset(x: &[u8]) -> usize {
+    let mut set = 0;
+    for &x in x {
+        if x > b'Z' {
+            set |= 1 << (x - b'a') as u32
+        } else {
+            set |= 1 << ((x - b'A') as u32 + 26)
         }
     }
-}
-
-impl<const N: usize> Iterator for SharedIter<N> {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut elems = ArrayVec::<u8, N>::new();
-        // peek at the last byte
-        for i in 0..N {
-            elems.push(self.data[i].pop()?);
-        }
-        loop {
-            // find the max of all first elements
-            let max = elems.iter().copied().max().unwrap();
-
-            // progress each that matches max
-            let mut all_eq = true;
-            let mut empty = false;
-            for i in 0..N {
-                if elems[i] == max {
-                    if let Some(x) = self.data[i].pop() {
-                        elems[i] = x
-                    } else {
-                        empty = true;
-                    }
-                } else {
-                    all_eq = false
-                }
-            }
-            // if all were equal min
-            if all_eq {
-                return Some(max);
-            }
-            // if one of the vecs was exhausted
-            if empty {
-                return None;
-            }
-        }
-    }
+    set
 }
 
 #[cfg(test)]
