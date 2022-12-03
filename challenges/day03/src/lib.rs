@@ -1,18 +1,16 @@
 #![feature(array_chunks)]
 
 use aoc::{Challenge, Parser as ChallengeParser};
-use nom::{
-    character::complete::{alpha1, line_ending},
-    IResult, Parser,
-};
-use parsers::ParserExt;
+use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day03<'i>(Vec<&'i str>);
+pub struct Day03<'i>(Vec<&'i [u8]>);
 
 impl<'i> ChallengeParser<'i> for Day03<'i> {
     fn parse(input: &'i str) -> IResult<&'i str, Self> {
-        alpha1.separated_list1(line_ending).map(Self).parse(input)
+        let mut lines = Vec::with_capacity(300);
+        lines.extend(input.as_bytes().split(|&x| x == b'\n'));
+        Ok(("", Self(lines)))
     }
 }
 
@@ -24,8 +22,8 @@ impl<'i> Challenge for Day03<'i> {
         let mut errors = 0;
         for i in self.0 {
             let (a, b) = i.split_at(i.len() / 2);
-            let a = bitset(a.as_bytes());
-            let b = bitset(b.as_bytes());
+            let a = bitset(a);
+            let b = bitset(b);
             errors += (a & b).trailing_zeros() as usize;
         }
         errors
@@ -35,9 +33,9 @@ impl<'i> Challenge for Day03<'i> {
     fn part_two(self) -> Self::Output2 {
         let mut badges = 0;
         for [a, b, c] in self.0.array_chunks() {
-            let a = bitset(a.as_bytes());
-            let b = bitset(b.as_bytes());
-            let c = bitset(c.as_bytes());
+            let a = bitset(a);
+            let b = bitset(b);
+            let c = bitset(c);
             badges += (a & b & c).trailing_zeros() as usize;
         }
         badges
