@@ -23,6 +23,16 @@ pub fn load<C: Challenge>() -> String {
     std::fs::read_to_string(file).expect("could not read file")
 }
 
+pub fn check<'i, P: Parser<'i> + Clone>(input: &'i str) {
+    let challenge = P::parse(input).unwrap().1;
+
+    let p1 = challenge.clone().part_one();
+    println!("\tAnswer to part one: {}", p1);
+
+    let p2 = challenge.part_two();
+    println!("\tAnswer to part two: {}\n", p2);
+}
+
 pub fn run<'i, P: Parser<'i>>(input: &'i str) {
     let challenge = P::parse(input).unwrap().1;
 

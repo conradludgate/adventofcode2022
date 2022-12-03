@@ -26,10 +26,9 @@ impl<'i> Challenge for Day03<'i> {
 
         for i in self.0 {
             let (a, b) = i.split_at(i.len() / 2);
-            let mut a = a.as_bytes().to_vec();
-            let mut b = b.as_bytes().to_vec();
-            let x = SharedIter::new([&mut a, &mut b]).next().unwrap();
-            errors += value(x);
+            let a = a.as_bytes().to_vec();
+            let b = b.as_bytes().to_vec();
+            errors += value(SharedIter::new([a, b]).next().unwrap());
         }
         errors
     }
@@ -38,10 +37,10 @@ impl<'i> Challenge for Day03<'i> {
     fn part_two(self) -> Self::Output2 {
         let mut badges = 0;
         for [a, b, c] in self.0.array_chunks() {
-            let mut a = a.as_bytes().to_vec();
-            let mut b = b.as_bytes().to_vec();
-            let mut c = c.as_bytes().to_vec();
-            let x = SharedIter::new([&mut a, &mut b, &mut c]).next().unwrap();
+            let a = a.as_bytes().to_vec();
+            let b = b.as_bytes().to_vec();
+            let c = c.as_bytes().to_vec();
+            let x = SharedIter::new([a, b, c]).next().unwrap();
             badges += value(x);
         }
         badges
@@ -57,49 +56,55 @@ fn value(x: u8) -> usize {
 }
 
 /// an iterator that finds matches in a set of bytes
-struct SharedIter<'a, const N: usize> {
-    data: [&'a [u8]; N],
+struct SharedIter<const N: usize> {
+    data: [Vec<u8>; N],
 }
 
-impl<'a, const N: usize> SharedIter<'a, N> {
-    fn new(data: [&'a mut [u8]; N]) -> Self {
+impl<const N: usize> SharedIter<N> {
+    fn new(data: [Vec<u8>; N]) -> Self {
         SharedIter {
-            data: data.map(|x| {
+            data: data.map(|mut x| {
                 x.sort();
-                &*x
+                x
             }),
         }
     }
 }
 
-impl<const N: usize> Iterator for SharedIter<'_, N> {
+impl<const N: usize> Iterator for SharedIter<N> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut splits = ArrayVec::<_, N>::new();
-        // split off the first byte of each subslice
+        let mut elems = ArrayVec::<u8, N>::new();
+        // peek at the last byte
         for i in 0..N {
-            let (a, rest) = self.data[i].split_first()?;
-            splits.push((*a, rest));
+            elems.push(self.data[i].pop()?);
         }
         loop {
-            // find the min of all first elements
-            let min = splits.iter().map(|x| x.0).min().unwrap();
-            // if all elements equal min
-            if splits.iter().all(|x| x.0 == min) {
-                // progress all internal states
-                for i in 0..N {
-                    self.data[i] = splits[i].1;
-                }
-                return Some(min);
-            }
-            // progress each that matches min
+            // find the max of all first elements
+            let max = elems.iter().copied().max().unwrap();
+
+            // progress each that matches max
+            let mut all_eq = true;
+            let mut empty = false;
             for i in 0..N {
-                if splits[i].0 == min {
-                    self.data[i] = splits[i].1;
-                    let (a, rest) = self.data[i].split_first()?;
-                    splits[i] = (*a, rest);
+                if elems[i] == max {
+                    if let Some(x) = self.data[i].pop() {
+                        elems[i] = x
+                    } else {
+                        empty = true;
+                    }
+                } else {
+                    all_eq = false
                 }
+            }
+            // if all were equal min
+            if all_eq {
+                return Some(max);
+            }
+            // if one of the vecs was exhausted
+            if empty {
+                return None;
             }
         }
     }
