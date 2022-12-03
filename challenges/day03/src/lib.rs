@@ -7,8 +7,8 @@ use nom::IResult;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Day03(ArrayVec<(usize, usize), 300>);
 
-impl<'i> ChallengeParser<'i> for Day03 {
-    fn parse(input: &'i str) -> IResult<&'i str, Self> {
+impl ChallengeParser for Day03 {
+    fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut lines = ArrayVec::new();
         for slice in input.as_bytes().split(|&x| x == b'\n') {
             let (a, b) = slice.split_at(slice.len() / 2);

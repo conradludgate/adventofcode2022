@@ -1,7 +1,8 @@
+use aoc::Parser;
 use day03::Day03;
 
 fn main() {
-    let input = aoc::load::<Day03>();
-    // aoc::check::<Day03>(&input);
-    aoc::run::<Day03>(&input);
+    let day = Day03::parse(include_str!("../input.txt")).unwrap().1;
+    aoc::check(day);
+    // aoc::run(day);
 }

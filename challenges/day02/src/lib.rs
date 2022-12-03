@@ -65,8 +65,8 @@ impl Rps {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Day02(Vec<(Rps, Goal)>);
 
-impl<'i> ChallengeParser<'i> for Day02 {
-    fn parse(input: &'i str) -> IResult<&'i str, Self> {
+impl ChallengeParser for Day02 {
+    fn parse(input: &'static str) -> IResult<&'static str, Self> {
         separated_pair(Rps::parse, tag(" "), Goal::parse)
             .separated_list1(line_ending)
             .map(Self)

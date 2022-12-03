@@ -18,8 +18,8 @@ impl Extend<usize> for Sum {
     }
 }
 
-impl<'i> ChallengeParser<'i> for Day01 {
-    fn parse(input: &'i str) -> IResult<&'i str, Self> {
+impl ChallengeParser for Day01 {
+    fn parse(input: &'static str) -> IResult<&'static str, Self> {
         number::<usize> // numbers
             .terminate_list1(line_ending) // terminated by new lines
             .map(|Sum(s)| s) // which are summed together

@@ -4,13 +4,13 @@ use nom::{bytes::complete::tag, IResult, Parser};
 #[derive(Debug, PartialEq, Clone)]
 pub struct Day00<'i>(&'i str);
 
-impl<'i> ChallengeParser<'i> for Day00<'i> {
-    fn parse(input: &'i str) -> IResult<&'i str, Self> {
+impl ChallengeParser for Day00<'static> {
+    fn parse(input: &'static str) -> IResult<&'static str, Self> {
         tag("").map(Self).parse(input)
     }
 }
 
-impl<'i> Challenge for Day00<'i> {
+impl Challenge for Day00<'static> {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
