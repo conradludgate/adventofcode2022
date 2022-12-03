@@ -1,16 +1,17 @@
-#![feature(array_chunks, vec_push_within_capacity)]
+#![feature(array_chunks)]
 
 use aoc::{Challenge, Parser as ChallengeParser};
+use arrayvec::ArrayVec;
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day03<'i>(Vec<&'i [u8]>);
+pub struct Day03<'i>(ArrayVec<&'i [u8], 300>);
 
 impl<'i> ChallengeParser<'i> for Day03<'i> {
     fn parse(input: &'i str) -> IResult<&'i str, Self> {
-        let mut lines = Vec::with_capacity(300);
+        let mut lines = ArrayVec::new();
         for slice in input.as_bytes().split(|&x| x == b'\n') {
-            let _ = lines.push_within_capacity(slice);
+            let _ = lines.try_push(slice);
         }
         Ok(("", Self(lines)))
     }
