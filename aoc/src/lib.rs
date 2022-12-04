@@ -16,13 +16,6 @@ pub trait Challenge {
     fn part_two(self) -> Self::Output2;
 }
 
-pub fn load<C: Challenge>() -> String {
-    println!("\nRunning challenge {}", C::NAME);
-
-    let file = Path::new("challenges").join(C::NAME).join("input.txt");
-    std::fs::read_to_string(file).expect("could not read file")
-}
-
 pub fn check<C: Challenge + Clone>(challenge: C) {
     let p1 = challenge.clone().part_one();
     println!("\tAnswer to part one: {}", p1);
@@ -32,6 +25,8 @@ pub fn check<C: Challenge + Clone>(challenge: C) {
 }
 
 pub fn run<C: Challenge>(challenge: C) {
+    println!("\nRunning challenge {}", C::NAME);
+
     let file = Path::new("challenges").join(C::NAME).join("README.md");
     let readme = std::fs::read_to_string(file).expect("could not read file");
     let part_one = !readme.contains("--- Part Two ---");
@@ -51,7 +46,7 @@ fn submit<C: Challenge, S: Display>(level: usize, answer: S) {
     let session = dotenv::var("AOC_SESSION").unwrap();
 
     let day = C::NAME[3..].parse::<i32>().unwrap();
-    let url = format!("https://adventofcode.com/{}/day/{}/answer", YEAR, day);
+    let url = format!("https://adventofcode.com/{YEAR}/day/{day}/answer");
 
     ureq::post(&url)
         .set("Cookie", &format!("session={session}"))
