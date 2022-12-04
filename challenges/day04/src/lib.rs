@@ -15,11 +15,6 @@ impl Range {
             .map(|[start, end]| Range { start, end })
             .parse(input)
     }
-
-    /// not accurate
-    fn len(self) -> usize {
-        self.end - self.start
-    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -42,12 +37,8 @@ impl Challenge for Day04 {
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
         let mut count = 0;
-        for (mut a, mut b) in self.0 {
-            if a.len() < b.len() {
-                std::mem::swap(&mut a, &mut b);
-            }
-            // a is bigger
-            if b.end <= a.end && b.start >= a.start {
+        for (a, b) in self.0 {
+            if a.start <= b.start && b.end <= a.end || b.start <= a.start && a.end <= b.end {
                 count += 1;
             }
         }
@@ -57,12 +48,8 @@ impl Challenge for Day04 {
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
         let mut count = 0;
-        for (mut a, mut b) in self.0 {
-            if b.start < a.start {
-                std::mem::swap(&mut a, &mut b);
-            }
-            // a is the first
-            if b.start <= a.end {
+        for (a, b) in self.0 {
+            if a.start <= b.start && b.start <= a.end || b.start <= a.start && a.start <= b.end {
                 count += 1;
             }
         }
