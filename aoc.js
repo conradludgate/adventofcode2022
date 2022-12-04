@@ -47,6 +47,9 @@ async function get_description() {
     let md = "";
     dom.window.document.querySelectorAll(".day-desc").forEach(e => md += NodeHtmlMarkdown.translate(e.innerHTML, { emDelimiter: "**" }) + "\n\n");
 
+    // fix numerical highlighting
+    md = md.replace(/\`\*\*([0-9]+)\*\*\`/g, "**`$1`**")
+
     await fs.writeFile(`${outdir}/README.md`, md);
 }
 
