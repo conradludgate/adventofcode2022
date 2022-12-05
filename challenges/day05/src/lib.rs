@@ -1,9 +1,9 @@
-#![feature(get_many_mut)]
+#![feature(slice_as_chunks)]
 
-use std::{array, mem::ManuallyDrop};
+use std::array;
 
 use aoc::{Challenge, Parser as ChallengeParser};
-use arrayvec::{ArrayString, ArrayVec};
+use arrayvec::ArrayString;
 use nom::{bytes::complete::tag, character::streaming::line_ending, sequence::tuple, IResult, Parser};
 use parsers::{number, ParserExt};
 
@@ -37,7 +37,8 @@ impl Instruction {
 pub struct Day05 {
     data: &'static str,
     stacks: usize,
-    instructions: ArrayVec<Instruction, 512>,
+    data_index_offsets: [usize; 9],
+    instructions: Vec<Instruction>,
 }
 
 impl ChallengeParser for Day05 {
@@ -49,11 +50,22 @@ impl ChallengeParser for Day05 {
         let (data, input) = input.split_at(block_length - line_length);
         let (_, input) = input.split_at(line_length + 1);
 
+        // calculate lengths of each stack based on the data
+        let mut data_index_offsets = [0; 9];
+        for line in data.as_bytes().chunks(stacks * 4) {
+            for (stack, [_, b, _, _]) in line.as_chunks().0.iter().enumerate() {
+                if *b == b' ' {
+                    data_index_offsets[stack] += 1;
+                }
+            }
+        }
+
         let (input, instructions) = Instruction::parse.separated_list1(line_ending).parse(input)?;
         Ok((
             input,
             Self {
                 data,
+                data_index_offsets,
                 stacks,
                 instructions,
             },
@@ -66,54 +78,47 @@ impl Day05 {
     fn solve(self, reverse: bool) -> ArrayString<9> {
         let Self {
             data,
+            data_index_offsets,
             stacks,
             instructions,
         } = self;
 
-        // manually drop - ArrayVec is bad at eliminating dropbounds so I will enforce it here :)
-        let instructions = ManuallyDrop::new(instructions);
+        // // manually drop - ArrayVec is bad at eliminating dropbounds so I will enforce it here :)
+        // let instructions = ManuallyDrop::new(instructions);
 
         // the value of state is (X, Y) where X is the stack this value is in
-        // and Y is the height (offset) in the stack
-        let mut states: [_; 9] = array::from_fn(|i| (i as u8, 128));
-        // current 'length' of the stack - not accurate but is relatively correct
-        let mut lengths = [129_u8; 9];
+        // and Y is the offset from the top of the stack
+        let mut states: [_; 9] = array::from_fn(|i| (i as u8, 0));
 
         // walk backwards
-        for i in instructions.iter().rev().copied() {
+        for i in instructions.into_iter().rev() {
             // for all of our states
-            for state in &mut states {
-                let offset = lengths[i.to as usize].wrapping_sub(state.1);
-                // if the state is in the resulting stack and is count from the top
-                if state.0 == i.to && offset <= i.count {
-                    // calculate the new offset from the top of the new stack
-                    let offset = if reverse { offset - 1 } else { i.count - offset };
-                    let height = lengths[i.from as usize].wrapping_add(offset);
-                    *state = (i.from, height);
-                }
-            }
-            // adjust stack lengths
-            lengths[i.from as usize] = lengths[i.from as usize].wrapping_add(i.count);
-            lengths[i.to as usize] = lengths[i.to as usize].wrapping_sub(i.count);
-        }
-
-        // calculate lengths of each stack based on the data
-        let mut data_index_offsets = [0; 9];
-        for line in data.as_bytes().chunks(stacks * 4) {
-            for (stack, length) in data_index_offsets.iter_mut().take(stacks).enumerate() {
-                if line[stack * 4 + 1] == b' ' {
-                    *length += 1;
+            for s in &mut states {
+                // if the state is in the resulting stack
+                if s.0 == i.to {
+                    // if count from the top
+                    if s.1 < i.count {
+                        // move the value to the correct stack
+                        s.0 = i.from;
+                        // calculate the new reversed offset from the top of the new stack
+                        if reverse {
+                            s.1 = i.count - s.1 - 1
+                        };
+                    } else {
+                        s.1 -= i.count;
+                    }
+                } else if s.0 == i.from {
+                    // if this is in the from stack, push it further down the stack
+                    s.1 += i.count;
                 }
             }
         }
 
         // produce string based on states resulting position
         let mut output = ArrayString::new();
-        for state in states.into_iter().take(stacks) {
-            let stack = state.0 as usize;
-            let offset = lengths[stack] - state.1;
-            let index = data_index_offsets[stack] + offset as usize - 1;
-            output.push(data.as_bytes()[index * stacks * 4 + stack * 4 + 1] as char);
+        for (stack, offset) in states.into_iter().take(stacks) {
+            let index = data_index_offsets[stack as usize] + offset as usize;
+            output.push(data.as_bytes()[index * stacks * 4 + stack as usize * 4 + 1] as char);
         }
         output
     }
