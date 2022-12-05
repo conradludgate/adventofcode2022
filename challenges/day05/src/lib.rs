@@ -1,3 +1,7 @@
+#![feature(get_many_mut)]
+
+use std::mem::ManuallyDrop;
+
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::{ArrayString, ArrayVec};
 use nom::{
@@ -80,37 +84,28 @@ impl ChallengeParser for Day05 {
 }
 
 impl Day05 {
+    #[inline(always)]
     fn solve(self, reverse: bool) -> ArrayString<9> {
-        let Self {
-            mut stacks,
-            instructions,
-        } = self;
+        let Self { stacks, instructions } = self;
+        let mut stacks = ManuallyDrop::new(stacks);
+        let instructions = ManuallyDrop::new(instructions);
 
-        for i in instructions {
-            let from;
-            let to;
-            if i.from < i.to {
-                let (head, last) = stacks.split_at_mut(i.to as usize - 1);
-                from = &mut head[i.from as usize - 1].0;
-                to = &mut last.first_mut().unwrap().0;
-            } else {
-                let (head, last) = stacks.split_at_mut(i.from as usize - 1);
-                to = &mut head[i.to as usize - 1].0;
-                from = &mut last.first_mut().unwrap().0;
-            }
+        for i in &*instructions {
+            // let (Stack(from), Stack(to)) = slice_dual_mut(&mut stacks, i.from as usize - 1, i.to as usize - 1);
+            let [Stack(from), Stack(to)] = stacks.get_many_mut([i.from as usize - 1, i.to as usize - 1]).unwrap();
 
-            let partition = from.len() - i.count as usize;
-            let stack = &mut from[partition..];
             if reverse {
-                stack.reverse()
+                for _ in 0..i.count {
+                    to.push(from.pop().unwrap())
+                }
+            } else {
+                let partition = from.len() - i.count as usize;
+                to.extend(from.drain(partition..));
             }
-
-            to.try_extend_from_slice(stack).unwrap();
-            from.truncate(partition);
         }
 
         let mut output = ArrayString::new();
-        for Stack(stack) in stacks {
+        for Stack(stack) in &*stacks {
             output.push(stack.last().unwrap().0 as char);
         }
         output
@@ -150,7 +145,7 @@ move 1 from 1 to 2
     #[test]
     fn parse() {
         let output = Day05::parse(INPUT).unwrap().1;
-        println!("{:?}", output);
+        println!("{output:?}");
     }
 
     #[test]

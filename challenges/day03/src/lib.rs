@@ -63,7 +63,7 @@ CrZsJsPPZsGzwwsLwLmpwMDw";
     #[test]
     fn parse() {
         let output = Day03::parse(INPUT).unwrap().1;
-        println!("{:?}", output);
+        println!("{output:?}");
     }
 
     #[test]

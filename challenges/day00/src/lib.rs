@@ -34,7 +34,7 @@ mod tests {
     #[test]
     fn parse() {
         let output = Day00::parse(INPUT).unwrap().1;
-        println!("{:?}", output);
+        println!("{output:?}");
     }
 
     #[test]
