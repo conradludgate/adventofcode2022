@@ -72,7 +72,7 @@ impl ChallengeParser for Day05 {
 }
 
 impl Day05 {
-    fn solve(&mut self, reverse: bool) -> ([u8; 16], [u8; 16]) {
+    pub fn solve_inner(&mut self, reverse: bool) -> ([u8; 16], [u8; 16]) {
         // the value of stacks starts off representing the final state of our stacks.
         // as we run through out instructions backwards, we encode which stack each index is currently in
         let mut stacks: [u8; 16] = std::array::from_fn(|i| i as u8);
@@ -104,7 +104,7 @@ impl Day05 {
         (stacks, offsets)
     }
 
-    fn answer(self, (stacks, offsets): ([u8; 16], [u8; 16])) -> ArrayString<16> {
+    fn answer(self, (mut stacks, mut offsets): ([u8; 16], [u8; 16])) -> ArrayString<16> {
         let Self {
             data,
             data_index_offsets,
@@ -112,13 +112,17 @@ impl Day05 {
             ..
         } = self;
 
+        stacks[stack_count..].fill(0);
+        offsets[stack_count..].fill(0);
+
         // produce string based on states resulting position
-        let mut output = ArrayString::new();
-        for i in 0..stack_count {
+        let output = std::array::from_fn(|i| {
             let stack = stacks[i] as usize;
             let index = data_index_offsets[stack] + offsets[i] as usize;
-            output.push(data.as_bytes()[index * stack_count * 4 + stack * 4 + 1] as char);
-        }
+            data.as_bytes()[index * stack_count * 4 + stack * 4 + 1]
+        });
+        let mut output = ArrayString::from_byte_string(&output).unwrap();
+        output.truncate(stack_count);
         output
     }
 }
@@ -128,14 +132,14 @@ impl Challenge for Day05 {
 
     type Output1 = ArrayString<16>;
     fn part_one(mut self) -> Self::Output1 {
-        let states = self.solve(true);
-        self.answer(states)
+        let state = self.solve_inner(true);
+        self.answer(state)
     }
 
     type Output2 = ArrayString<16>;
     fn part_two(mut self) -> Self::Output2 {
-        let states = self.solve(false);
-        self.answer(states)
+        let state = self.solve_inner(false);
+        self.answer(state)
     }
 }
 
