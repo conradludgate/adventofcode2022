@@ -1,13 +1,9 @@
 use aoc::{Challenge, Parser as ChallengeParser};
-use arrayvec::ArrayVec;
+use arrayvec::{ArrayString, ArrayVec};
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::{
-        complete::{alpha0, anychar},
-        streaming::line_ending,
-    },
-    combinator::opt,
+    character::{complete::anychar, streaming::line_ending},
     sequence::tuple,
     IResult, Parser,
 };
@@ -83,49 +79,55 @@ impl ChallengeParser for Day05 {
     }
 }
 
-impl Challenge for Day05 {
-    const NAME: &'static str = env!("CARGO_PKG_NAME");
-
-    type Output1 = String;
-    fn part_one(self) -> Self::Output1 {
+impl Day05 {
+    fn solve(self, reverse: bool) -> ArrayString<9> {
         let Self {
             mut stacks,
             instructions,
         } = self;
+
         for i in instructions {
-            for _ in 0..i.count {
-                let krate = stacks[i.from as usize - 1].0.pop().unwrap();
-                stacks[i.to as usize - 1].0.push(krate);
+            let from;
+            let to;
+            if i.from < i.to {
+                let (head, last) = stacks.split_at_mut(i.to as usize - 1);
+                from = &mut head[i.from as usize - 1].0;
+                to = &mut last.first_mut().unwrap().0;
+            } else {
+                let (head, last) = stacks.split_at_mut(i.from as usize - 1);
+                to = &mut head[i.to as usize - 1].0;
+                from = &mut last.first_mut().unwrap().0;
             }
+
+            let partition = from.len() - i.count as usize;
+            let stack = &mut from[partition..];
+            if reverse {
+                stack.reverse()
+            }
+
+            to.try_extend_from_slice(stack).unwrap();
+            from.truncate(partition);
         }
-        let mut output = String::with_capacity(9);
+
+        let mut output = ArrayString::new();
         for Stack(stack) in stacks {
             output.push(stack.last().unwrap().0 as char);
         }
         output
     }
+}
 
-    type Output2 = String;
+impl Challenge for Day05 {
+    const NAME: &'static str = env!("CARGO_PKG_NAME");
+
+    type Output1 = ArrayString<9>;
+    fn part_one(self) -> Self::Output1 {
+        self.solve(true)
+    }
+
+    type Output2 = ArrayString<9>;
     fn part_two(self) -> Self::Output2 {
-        let Self {
-            mut stacks,
-            instructions,
-        } = self;
-        for i in instructions {
-            let mut ministack = Stack(ArrayVec::new());
-            for _ in 0..i.count {
-                let krate = stacks[i.from as usize - 1].0.pop().unwrap();
-                ministack.0.push(krate);
-            }
-            while let Some(krate) = ministack.0.pop() {
-                stacks[i.to as usize - 1].0.push(krate)
-            }
-        }
-        let mut output = String::with_capacity(9);
-        for Stack(stack) in stacks {
-            output.push(stack.last().unwrap().0 as char);
-        }
-        output
+        self.solve(false)
     }
 }
 
@@ -154,12 +156,12 @@ move 1 from 1 to 2
     #[test]
     fn part_one() {
         let output = Day05::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_one(), "CMZ");
+        assert_eq!(output.part_one().as_str(), "CMZ");
     }
 
     #[test]
     fn part_two() {
         let output = Day05::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), "MCD");
+        assert_eq!(output.part_two().as_str(), "MCD");
     }
 }
