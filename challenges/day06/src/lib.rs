@@ -1,3 +1,6 @@
+#![feature(portable_simd)]
+use std::simd::{u8x32, SimdUint};
+
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
@@ -18,26 +21,31 @@ impl Day06 {
             return 0;
         }
 
-        let mut counter = [0u8; 32];
+        let mut counter = u8x32::default();
         for i in 0..n {
             unsafe {
-                *counter.get_unchecked_mut(self.0[i] as usize & 0b0001_1111) += 1;
+                *counter
+                    .as_mut_array()
+                    .get_unchecked_mut(self.0[i] as usize & 0x1f) += 1;
             }
         }
 
         let mut i = n;
         loop {
-            let counter2: [u8; 32] = std::array::from_fn(|i| counter[i] * counter[i]);
-            let sum = counter2.into_iter().sum::<u8>();
+            let sum = (counter * counter).reduce_sum();
             if sum == n as u8 {
                 return i;
             }
 
             unsafe {
-                *counter.get_unchecked_mut(*self.0.get_unchecked(i - n) as usize & 0b0001_1111) -= 1;
+                *counter
+                    .as_mut_array()
+                    .get_unchecked_mut(*self.0.get_unchecked(i - n) as usize & 0x1f) -= 1;
             }
             unsafe {
-                *counter.get_unchecked_mut(*self.0.get_unchecked(i) as usize & 0b0001_1111) += 1;
+                *counter
+                    .as_mut_array()
+                    .get_unchecked_mut(*self.0.get_unchecked(i) as usize & 0x1f) += 1;
             }
 
             i += 1;
