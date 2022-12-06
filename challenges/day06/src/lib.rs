@@ -29,23 +29,31 @@ impl Challenge for Day06 {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        'outer: for (i, mut window) in self.0.array_windows::<14>().copied().enumerate() {
-            window.sort();
-            for i in 1..14 {
-                if window[i - 1] == window[i] {
-                    continue 'outer;
-                }
-            }
-            return i + 14;
+        let mut counter = [0u8; 32];
+        for i in 0..14 {
+            counter[(self.0[i] - b'a') as usize] += 1;
         }
-        0
+
+        let mut i = 14;
+        loop {
+            let counter2: [u8; 10] = std::array::from_fn(|i| counter[i] * counter[i]);
+            let sum = counter2.into_iter().sum::<u8>();
+            if sum == 10 {
+                return i;
+            }
+
+            counter[(self.0[i - 14] - b'a') as usize] -= 1;
+            counter[(self.0[i] - b'a') as usize] += 1;
+
+            i += 1;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Day06;
-    use aoc::{Challenge, Parser};
+    use aoc::Challenge;
 
     #[test]
     fn part_one() {
