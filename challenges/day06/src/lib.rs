@@ -17,15 +17,9 @@ impl ChallengeParser for Day06 {
 impl Day06 {
     #[inline(always)]
     fn solve(self, n: usize) -> usize {
-        if self.0.len() < n {
-            return 0;
-        }
-
         let mut counter = u8x32::default();
         for i in 0..n {
-            unsafe {
-                *counter.as_mut_array().get_unchecked_mut(self.0[i] as usize & 0x1f) += 1;
-            }
+            counter.as_mut_array()[self.0[i] as usize & 0x1f] += 1;
         }
 
         let mut i = n;
@@ -35,16 +29,8 @@ impl Day06 {
                 return i;
             }
 
-            unsafe {
-                *counter
-                    .as_mut_array()
-                    .get_unchecked_mut(*self.0.get_unchecked(i - n) as usize & 0x1f) -= 1;
-            }
-            unsafe {
-                *counter
-                    .as_mut_array()
-                    .get_unchecked_mut(*self.0.get_unchecked(i) as usize & 0x1f) += 1;
-            }
+            counter.as_mut_array()[self.0[i - n] as usize & 0x1f] -= 1;
+            counter.as_mut_array()[self.0[i] as usize & 0x1f] += 1;
 
             i += 1;
         }

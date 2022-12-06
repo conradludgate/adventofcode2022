@@ -60,7 +60,7 @@ impl ChallengeParser for Day05 {
             }
         }
 
-        let (input, instructions) = Instruction::parse.separated_list1(line_ending).parse(input)?;
+        let (input, instructions) = Instruction::parse.terminate_list1(line_ending).parse(input)?;
         Ok((
             input,
             Self {
@@ -91,8 +91,8 @@ impl Day05 {
                 offsets.simd_lt(count).to_int().cast::<u8>() & stacks.simd_eq(to).to_int().cast::<u8>();
 
             let mut slice = [0; 16];
-            slice[inst.from as usize] = inst.count;
-            slice[inst.to as usize] = 0u8.wrapping_sub(inst.count);
+            slice[inst.from as usize & 0xf] = inst.count;
+            slice[inst.to as usize & 0xf] = 0u8.wrapping_sub(inst.count);
 
             offsets += u8x16::gather_or_default(&slice, stacks.cast());
 
@@ -120,8 +120,11 @@ impl Day05 {
         mask[..stack_count].fill(-1);
         let mask = Mask::from_int(mask);
 
-        let index = Simd::gather_select(&data_index_offsets, mask, stacks.cast(), Default::default()) + offsets.cast();
-        let index = index * Simd::splat(stack_count * 4) + stacks.cast::<usize>() * Simd::splat(4) + Simd::splat(1);
+        let stacks = stacks.cast();
+        let offsets = offsets.cast();
+
+        let index = Simd::gather_select(&data_index_offsets, mask, stacks, Default::default()) + offsets;
+        let index = index * Simd::splat(stack_count * 4) + stacks * Simd::splat(4) + Simd::splat(1);
 
         let output = u8x16::gather_select(data.as_bytes(), mask, index, Default::default());
 
