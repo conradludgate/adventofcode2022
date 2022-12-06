@@ -1,4 +1,6 @@
-#![feature(slice_as_chunks)]
+#![feature(slice_as_chunks, portable_simd)]
+
+use std::simd::{u8x16, Mask, Simd, SimdPartialEq, SimdPartialOrd};
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::ArrayString;
@@ -72,39 +74,41 @@ impl ChallengeParser for Day05 {
 }
 
 impl Day05 {
-    pub fn solve_inner(&mut self, reverse: bool) -> ([u8; 16], [u8; 16]) {
+    fn solve_inner(&mut self, reverse: bool) -> (u8x16, u8x16) {
         // the value of stacks starts off representing the final state of our stacks.
         // as we run through out instructions backwards, we encode which stack each index is currently in
-        let mut stacks: [u8; 16] = std::array::from_fn(|i| i as u8);
+        let mut stacks = u8x16::from_array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
         // offsets encodes where this same value is in the stack from the top (0 is the top)
-        let mut offsets = [0; 16];
+        let mut offsets = u8x16::default();
 
         // walk backwards
         for inst in self.instructions.drain(..).rev() {
-            let should_move_mask: [u8; 16] =
-                std::array::from_fn(|i| 0u8.wrapping_sub((inst.to == stacks[i] && offsets[i] < inst.count) as u8));
+            let count = u8x16::splat(inst.count);
+            let to = u8x16::splat(inst.to);
+            let from = u8x16::splat(inst.from);
 
-            offsets = std::array::from_fn(|i| {
-                offsets[i]
-                    .wrapping_add(inst.count * (stacks[i] == inst.from) as u8)
-                    .wrapping_sub(inst.count * (stacks[i] == inst.to) as u8)
-            });
+            let should_move_mask =
+                offsets.simd_lt(count).to_int().cast::<u8>() & stacks.simd_eq(to).to_int().cast::<u8>();
+
+            let mut slice = [0; 16];
+            slice[inst.from as usize] = inst.count;
+            slice[inst.to as usize] = 0u8.wrapping_sub(inst.count);
+
+            offsets += u8x16::gather_or_default(&slice, stacks.cast());
 
             if reverse {
-                offsets = std::array::from_fn(|i| offsets[i] ^ should_move_mask[i]);
+                offsets ^= should_move_mask;
             } else {
-                offsets = std::array::from_fn(|i| offsets[i].wrapping_add(inst.count & should_move_mask[i]));
+                offsets += should_move_mask & count;
             }
 
-            stacks = std::array::from_fn(|i| {
-                let mask = should_move_mask[i];
-                (mask & inst.from) | (!mask & stacks[i])
-            });
+            stacks = should_move_mask & from | !should_move_mask & stacks;
         }
+
         (stacks, offsets)
     }
 
-    fn answer(self, (mut stacks, mut offsets): ([u8; 16], [u8; 16])) -> ArrayString<16> {
+    fn answer(self, stacks: u8x16, offsets: u8x16) -> ArrayString<16> {
         let Self {
             data,
             data_index_offsets,
@@ -112,16 +116,16 @@ impl Day05 {
             ..
         } = self;
 
-        stacks[stack_count..].fill(0);
-        offsets[stack_count..].fill(0);
+        let mut mask = Simd::default();
+        mask[..stack_count].fill(-1);
+        let mask = Mask::from_int(mask);
 
-        // produce string based on states resulting position
-        let output = std::array::from_fn(|i| {
-            let stack = stacks[i] as usize;
-            let index = data_index_offsets[stack] + offsets[i] as usize;
-            data.as_bytes()[index * stack_count * 4 + stack * 4 + 1]
-        });
-        let mut output = ArrayString::from_byte_string(&output).unwrap();
+        let index = Simd::gather_select(&data_index_offsets, mask, stacks.cast(), Default::default()) + offsets.cast();
+        let index = index * Simd::splat(stack_count * 4) + stacks.cast::<usize>() * Simd::splat(4) + Simd::splat(1);
+
+        let output = u8x16::gather_select(data.as_bytes(), mask, index, Default::default());
+
+        let mut output = ArrayString::from_byte_string(output.as_array()).unwrap();
         output.truncate(stack_count);
         output
     }
@@ -132,14 +136,14 @@ impl Challenge for Day05 {
 
     type Output1 = ArrayString<16>;
     fn part_one(mut self) -> Self::Output1 {
-        let state = self.solve_inner(true);
-        self.answer(state)
+        let (stacks, offsets) = self.solve_inner(true);
+        self.answer(stacks, offsets)
     }
 
     type Output2 = ArrayString<16>;
     fn part_two(mut self) -> Self::Output2 {
-        let state = self.solve_inner(false);
-        self.answer(state)
+        let (stacks, offsets) = self.solve_inner(false);
+        self.answer(stacks, offsets)
     }
 }
 

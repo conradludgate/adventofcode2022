@@ -24,9 +24,7 @@ impl Day06 {
         let mut counter = u8x32::default();
         for i in 0..n {
             unsafe {
-                *counter
-                    .as_mut_array()
-                    .get_unchecked_mut(self.0[i] as usize & 0x1f) += 1;
+                *counter.as_mut_array().get_unchecked_mut(self.0[i] as usize & 0x1f) += 1;
             }
         }
 
