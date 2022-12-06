@@ -1,5 +1,3 @@
-#![feature(array_windows)]
-
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
@@ -13,61 +11,84 @@ impl ChallengeParser for Day06 {
     }
 }
 
-impl Challenge for Day06 {
-    const NAME: &'static str = env!("CARGO_PKG_NAME");
-
-    type Output1 = usize;
-    fn part_one(self) -> Self::Output1 {
-        for (i, [a, b, c, d]) in self.0.array_windows().copied().enumerate() {
-            if a == b || a == c || a == d || b == c || b == d || c == d {
-                continue;
-            }
-            return i + 4;
+impl Day06 {
+    #[inline(always)]
+    fn solve(self, n: usize) -> usize {
+        if self.0.len() < n {
+            return 0;
         }
-        0
-    }
 
-    type Output2 = usize;
-    fn part_two(self) -> Self::Output2 {
         let mut counter = [0u8; 32];
-        for i in 0..14 {
-            counter[(self.0[i] - b'a') as usize] += 1;
+        for i in 0..n {
+            unsafe {
+                *counter.get_unchecked_mut(self.0[i] as usize & 0b0001_1111) += 1;
+            }
         }
 
-        let mut i = 14;
+        let mut i = n;
         loop {
-            let counter2: [u8; 10] = std::array::from_fn(|i| counter[i] * counter[i]);
+            let counter2: [u8; 32] = std::array::from_fn(|i| counter[i] * counter[i]);
             let sum = counter2.into_iter().sum::<u8>();
-            if sum == 10 {
+            if sum == n as u8 {
                 return i;
             }
 
-            counter[(self.0[i - 14] - b'a') as usize] -= 1;
-            counter[(self.0[i] - b'a') as usize] += 1;
+            unsafe {
+                *counter.get_unchecked_mut(*self.0.get_unchecked(i - n) as usize & 0b0001_1111) -= 1;
+            }
+            unsafe {
+                *counter.get_unchecked_mut(*self.0.get_unchecked(i) as usize & 0b0001_1111) += 1;
+            }
 
             i += 1;
         }
     }
 }
 
+impl Challenge for Day06 {
+    const NAME: &'static str = env!("CARGO_PKG_NAME");
+
+    type Output1 = usize;
+    fn part_one(self) -> Self::Output1 {
+        self.solve(4)
+    }
+
+    type Output2 = usize;
+    fn part_two(self) -> Self::Output2 {
+        self.solve(14)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Day06;
-    use aoc::Challenge;
+    use aoc::{Challenge, Parser};
 
     #[test]
     fn part_one() {
-        assert_eq!(Day06(b"bvwbjplbgvbhsrlpgdmjqwftvncz").part_one(), 5);
-        assert_eq!(Day06(b"nppdvjthqldpwncqszvftbrmjlhg").part_one(), 6);
-        assert_eq!(Day06(b"nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg").part_one(), 10);
-        assert_eq!(Day06(b"zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw").part_one(), 11);
+        assert_eq!(Day06::parse("bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap().1.part_one(), 5);
+        assert_eq!(Day06::parse("nppdvjthqldpwncqszvftbrmjlhg").unwrap().1.part_one(), 6);
+        assert_eq!(
+            Day06::parse("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg").unwrap().1.part_one(),
+            10
+        );
+        assert_eq!(
+            Day06::parse("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw").unwrap().1.part_one(),
+            11
+        );
     }
 
     #[test]
     fn part_two() {
-        assert_eq!(Day06(b"bvwbjplbgvbhsrlpgdmjqwftvncz").part_two(), 23);
-        assert_eq!(Day06(b"nppdvjthqldpwncqszvftbrmjlhg").part_two(), 23);
-        assert_eq!(Day06(b"nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg").part_two(), 29);
-        assert_eq!(Day06(b"zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw").part_two(), 26);
+        assert_eq!(Day06::parse("bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap().1.part_two(), 23);
+        assert_eq!(Day06::parse("nppdvjthqldpwncqszvftbrmjlhg").unwrap().1.part_two(), 23);
+        assert_eq!(
+            Day06::parse("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg").unwrap().1.part_two(),
+            29
+        );
+        assert_eq!(
+            Day06::parse("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw").unwrap().1.part_two(),
+            26
+        );
     }
 }
