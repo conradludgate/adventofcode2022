@@ -74,6 +74,76 @@ impl ChallengeParser for Day05 {
 }
 
 impl Day05 {
+    /// original logic:
+    ///
+    /// ```ignore
+    /// // for all of our states
+    /// for i in 0..self.stack_count {
+    ///     // if the state is in the resulting stack
+    ///     if stacks[i] == inst.to {
+    ///         // if count from the top
+    ///         if offsets[i] < inst.count {
+    ///             // move the value to the correct stack
+    ///             stacks[i] = inst.from;
+    ///             // calculate the new reversed offset from the top of the new stack
+    ///             if reverse {
+    ///                 offsets[i] = inst.count - offsets[i] - 1
+    ///             };
+    ///         } else {
+    ///             offsets[i] -= inst.count;
+    ///         }
+    ///     } else if stacks[i] == inst.from {
+    ///         // if this is in the from stack, push it further down the stack
+    ///         offsets[i] += inst.count;
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Clever observation: `offsets[i] = inst.count - offsets[i] - 1` is equivalent to
+    /// `offsets[i] = (offsets[i] - inst.count) ^ 0xff` under two's compliment
+    ///
+    /// We can rewrite it as
+    /// ```ignore
+    /// // for all of our states
+    /// for i in 0..self.stack_count {
+    ///     // if the state is in the resulting stack
+    ///     if stacks[i] == inst.to {
+    ///         offsets[i] -= inst.count;
+    ///         // if count from the top
+    ///         if offsets[i] < inst.count {
+    ///             stacks[i] = inst.from;
+    ///             if reverse { offsets[i] ^= 0xff } else { offsets[i] += inst.count }
+    ///         }
+    ///     } else if stacks[i] == inst.from {
+    ///         // if this is in the from stack, push it further down the stack
+    ///         offsets[i] += inst.count;
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Finally, assign some variables and we can get
+    ///
+    /// ```ignore
+    /// // for all of our states
+    /// for i in 0..self.stack_count {
+    ///     let should_move = stacks[i] == inst.to && offsets[i] < inst.count;
+    ///     if stacks[i] == inst.to {
+    ///         offsets[i] -= inst.count;
+    ///     }
+    ///     if stacks[i] == inst.from {
+    ///         offsets[i] += inst.count;
+    ///     }
+    ///     if reverse && should_move {
+    ///         offsets[i] += inst.count;
+    ///     }
+    ///     if !reverse && should_move {
+    ///         offsets[i] ^= 0xff;
+    ///     }
+    ///     stacks[i] = if should_move { stacks.from } else { stacks[i] }
+    /// }
+    /// ```
+    ///
+    /// Being clever with SIMD, we can optimise away the inner loop
     fn solve_inner(&mut self, reverse: bool) -> (u8x16, u8x16) {
         // the value of stacks starts off representing the final state of our stacks.
         // as we run through out instructions backwards, we encode which stack each index is currently in
