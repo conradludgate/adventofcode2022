@@ -1,9 +1,8 @@
 #![feature(portable_simd)]
 
-use std::simd::{u32x8, u8x8, SimdPartialEq, SimdPartialOrd, SimdUint};
+use std::simd::{u32x8, u8x8, SimdPartialOrd, SimdUint};
 
 use aoc::{Challenge, Parser as ChallengeParser};
-use arrayvec::ArrayVec;
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -12,7 +11,8 @@ pub struct Day07(Vec<u32>);
 impl ChallengeParser for Day07 {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         // this is the stack of the current nested directory sizes
-        let mut stack = ArrayVec::<u32, 10>::new();
+        let mut stack = [0; 16];
+        let mut stack_len = 0;
 
         // this is a store of all final directory sizes
         let mut tree = Vec::<u32>::with_capacity(166);
@@ -21,28 +21,35 @@ impl ChallengeParser for Day07 {
         let mut current_size = 0;
 
         for line in input.as_bytes().split(|&b| b == b'\n') {
-            match line {
+            if line.len() < 4 {
+                continue;
+            }
+            const CD: u32 = u32::from_ne_bytes(*b"$ cd");
+            const LS: u32 = u32::from_ne_bytes(*b"$ ls");
+            const DIR: u32 = u32::from_ne_bytes(*b"dir ");
+            let prefix = u32::from_ne_bytes(<[u8; 4]>::try_from(&line[..4]).unwrap());
+            match prefix {
                 // on `cd ..`, push the final size to the tree
                 // and update the current_size value with the previously saved value
-                b"$ cd .." => {
-                    let size = stack.pop().unwrap();
-                    tree.push(current_size);
-                    current_size += size;
-                }
-                // on `cd foo`, save the current dir size in the stack
-                // and reset it to 0 for the sub directory
-                x if x.starts_with(b"$ cd ") => {
-                    stack.push(current_size);
-                    current_size = 0;
+                CD => {
+                    if line.get(5).copied() == Some(b'.') {
+                        stack_len -= 1;
+                        let size = stack[stack_len & 0xf];
+                        tree.push(current_size);
+                        current_size += size;
+                    } else {
+                        stack[stack_len & 0xf] = current_size;
+                        stack_len += 1;
+                        current_size = 0;
+                    }
                 }
                 // irrelevant to the algorithm
-                b"$ ls" | b"" => {}
-                x if x.starts_with(b"dir ") => {}
+                LS | DIR => {}
                 // record file size
-                x => {
+                _ => {
                     let mut number = u8x8::default();
-                    let len = x.len().min(8);
-                    number.as_mut_array()[..len].copy_from_slice(&x[..len]);
+                    let len = line.len().min(8);
+                    number.as_mut_array()[..len].copy_from_slice(&line[..len]);
 
                     let number = (number - u8x8::splat(b'0')).cast();
                     let number_mask = number.simd_lt(u32x8::splat(10)).to_int().cast();
@@ -59,9 +66,10 @@ impl ChallengeParser for Day07 {
         }
 
         // final `cd ..`s
-        while let Some(size) = stack.pop() {
+        while let Some(s) = stack_len.checked_sub(1) {
             tree.push(current_size);
-            current_size += size;
+            current_size += stack[s & 0xf];
+            stack_len = s;
         }
 
         Ok(("", Self(tree)))
