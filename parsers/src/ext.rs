@@ -1,6 +1,6 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::{Range, RangeFrom, RangeTo}};
 
-use nom::{error::FromExternalError, IResult, Parser};
+use nom::{error::{FromExternalError, ParseError}, IResult, Parser, character::complete::line_ending, Slice, InputIter, InputLength, Compare};
 
 pub use self::{
     map_res::MapRes,
@@ -66,6 +66,21 @@ pub trait ParserExt<I, O, E>: Parser<I, O, E> {
         }
     }
 
+    fn lines<O2, C>(self) -> TerminatedList1<Self, fn(input: I) -> IResult<I, I, E>, O, O2, C>
+    where
+        Self: Sized,
+        I: Slice<Range<usize>> + Slice<RangeFrom<usize>> + Slice<RangeTo<usize>>,
+        I: InputIter + InputLength,
+        I: Compare<&'static str>,
+        E: ParseError<I>,
+    {
+        TerminatedList1 {
+            f: self,
+            g: line_ending,
+            _output: PhantomData,
+        }
+    }
+
     fn terminate_list1<G, O2, C>(self, g: G) -> TerminatedList1<Self, G, O, O2, C>
     where
         G: Parser<I, O2, E>,
@@ -102,6 +117,14 @@ pub trait ParserExt<I, O, E>: Parser<I, O, E> {
             g,
             _output: PhantomData,
         }
+    }
+
+    fn followed_by<G, O2>(self, g: G) -> Skip<Self, G, O2>
+    where
+        G: Parser<I, O2, E>,
+        Self: Sized,
+    {
+        self.skip(g)
     }
 
     fn skip<G, O2>(self, g: G) -> Skip<Self, G, O2>

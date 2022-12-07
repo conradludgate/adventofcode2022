@@ -24,6 +24,15 @@ impl Day06 {
 
         let mut i = n;
         loop {
+            // a clever way to assert that all the counters are 0 or 1 (ie no duplicates)
+            // i*i = 0 if i == 0, = 1 if i == 1, > i if i > 1.
+            // This means that if all i are 0 or 1, the sum remains the same.
+            // If there is an i > 1, the sum will increase.
+            // We maintain the regular sum to be = n, so we test that the sum is still n
+            // after squaring.
+            //
+            // Being aware of overflows: the most we can expect is 14 of a single value
+            // 14*14 is 196 which does not overflow u8.
             let sum = (counter * counter).reduce_sum();
             if sum == n as u8 {
                 return i;

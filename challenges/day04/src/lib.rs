@@ -49,7 +49,7 @@ impl Challenge for Day04 {
     fn part_two(self) -> Self::Output2 {
         let mut count = 0;
         for (a, b) in self.0 {
-            if a.start <= b.start && b.start <= a.end || b.start <= a.start && a.start <= b.end {
+            if a.start <= b.end && b.start <= a.end {
                 count += 1;
             }
         }
