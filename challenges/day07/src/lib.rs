@@ -1,17 +1,21 @@
+#![feature(portable_simd)]
+
+use std::simd::{u32x8, u8x8, SimdPartialEq, SimdPartialOrd, SimdUint};
+
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::ArrayVec;
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day07(Vec<usize>);
+pub struct Day07(Vec<u32>);
 
 impl ChallengeParser for Day07 {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         // this is the stack of the current nested directory sizes
-        let mut stack = ArrayVec::<usize, 10>::new();
+        let mut stack = ArrayVec::<u32, 10>::new();
 
         // this is a store of all final directory sizes
-        let mut tree = Vec::<usize>::with_capacity(166);
+        let mut tree = Vec::<u32>::with_capacity(166);
 
         // size of the current directory
         let mut current_size = 0;
@@ -36,16 +40,18 @@ impl ChallengeParser for Day07 {
                 x if x.starts_with(b"dir ") => {}
                 // record file size
                 x => {
-                    let mut size = 0;
-                    let mut iter = x.iter().copied();
-                    loop {
-                        let b = iter.next().unwrap();
-                        if b == b' ' {
-                            break;
-                        }
-                        size *= 10;
-                        size += (b - b'0') as usize;
-                    }
+                    let mut number = u8x8::default();
+                    let len = x.len().min(8);
+                    number.as_mut_array()[..len].copy_from_slice(&x[..len]);
+
+                    let number = (number - u8x8::splat(b'0')).cast();
+                    let number_mask = number.simd_lt(u32x8::splat(10)).to_int().cast();
+
+                    let pows =
+                        u32x8::from_array([10_000_000, 1_000_000, 100_000, 10_000, 1_000, 100, 10, 1]) & number_mask;
+
+                    let pow = 100_000_000 - pows.reduce_sum() * 9;
+                    let size = (pows * number).reduce_sum() / pow;
 
                     current_size += size;
                 }
@@ -65,12 +71,12 @@ impl ChallengeParser for Day07 {
 impl Challenge for Day07 {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
-    type Output1 = usize;
+    type Output1 = u32;
     fn part_one(self) -> Self::Output1 {
         self.0.into_iter().filter(|x| *x <= 100000).sum()
     }
 
-    type Output2 = usize;
+    type Output2 = u32;
     fn part_two(self) -> Self::Output2 {
         let minimum = self.0.last().unwrap() - 40_000_000;
         self.0.into_iter().filter(|&v| v > minimum).min().unwrap()
