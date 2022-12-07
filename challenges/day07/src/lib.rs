@@ -1,6 +1,7 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use aoc::{Challenge, Parser as ChallengeParser};
+use arrayvec::ArrayVec;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_until},
@@ -74,22 +75,17 @@ impl ChallengeParser for Day07 {
 }
 
 impl Day07 {
-    fn build_dir_tree(self) -> HashMap<Vec<&'static str>, usize> {
-        let mut d: VecDeque<_> = self.0.into();
-
-        // remove known cd / ls pair
-        d.pop_front();
-        d.pop_front();
-
-        let mut dir = Vec::<&'static str>::new();
-        let mut sizes = HashMap::<Vec<&'static str>, usize>::new();
+    fn build_dir_tree(self) -> HashMap<ArrayVec<&'static str, 9>, usize> {
+        let mut dir = ArrayVec::new();
+        let mut sizes = HashMap::with_capacity(166);
         let mut current_size = 0;
 
-        for line in d {
+        for line in self.0 {
             match line {
                 Line::Command(Command::Cd(name)) => {
                     let new = match name {
-                        ".." => dir[..dir.len() - 1].to_vec(),
+                        "/" => ArrayVec::new(),
+                        ".." => ArrayVec::try_from(&dir[..dir.len() - 1]).unwrap(),
                         name => {
                             let mut new = dir.clone();
                             new.push(name);
