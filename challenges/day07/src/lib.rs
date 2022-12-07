@@ -1,79 +1,12 @@
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::ArrayVec;
-use nom::{
-    branch::alt,
-    bytes::complete::{tag, take_until},
-    sequence::tuple,
-    IResult, Parser,
-};
-use parsers::{number, ParserExt};
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum Meta {
-    Dir,
-    Size(usize),
-}
-
-impl Meta {
-    fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        alt((tag("dir").map(|_| Self::Dir), number.map(Self::Size))).parse(input)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-struct Entry {
-    meta: Meta,
-    name: &'static str,
-}
-
-impl Entry {
-    fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        tuple((Meta::parse, tag(" "), take_until("\n")))
-            .map(|(meta, _, name)| Self { meta, name })
-            .parse(input)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum Command {
-    Ls,
-    Cd(&'static str),
-}
-
-impl Command {
-    fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        alt((
-            tag("ls").map(|_| Self::Ls),
-            take_until("\n").preceded_by(tag("cd ")).map(Self::Cd),
-        ))
-        .preceded_by(tag("$ "))
-        .parse(input)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum Line {
-    Command(Command),
-    Entry(Entry),
-}
-
-impl Line {
-    fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        alt((Command::parse.map(Self::Command), Entry::parse.map(Self::Entry))).parse(input)
-    }
-}
+use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day07(Vec<Line>);
+pub struct Day07(Vec<usize>);
 
 impl ChallengeParser for Day07 {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        Line::parse.lines().map(Self).parse(input)
-    }
-}
-
-impl Day07 {
-    fn build_dir_tree(self) -> Vec<usize> {
         // this is the stack of the current nested directory sizes
         let mut stack = ArrayVec::<usize, 10>::new();
 
@@ -83,27 +16,39 @@ impl Day07 {
         // size of the current directory
         let mut current_size = 0;
 
-        for line in self.0 {
+        for line in input.as_bytes().split(|&b| b == b'\n') {
             match line {
                 // on `cd ..`, push the final size to the tree
                 // and update the current_size value with the previously saved value
-                Line::Command(Command::Cd("..")) => {
+                b"$ cd .." => {
                     let size = stack.pop().unwrap();
                     tree.push(current_size);
                     current_size += size;
                 }
                 // on `cd foo`, save the current dir size in the stack
                 // and reset it to 0 for the sub directory
-                Line::Command(Command::Cd(_)) => {
+                x if x.starts_with(b"$ cd ") => {
                     stack.push(current_size);
                     current_size = 0;
                 }
                 // irrelevant to the algorithm
-                Line::Command(Command::Ls) | Line::Entry(Entry { meta: Meta::Dir, .. }) => {}
+                b"$ ls" | b"" => {}
+                x if x.starts_with(b"dir ") => {}
                 // record file size
-                Line::Entry(Entry {
-                    meta: Meta::Size(x), ..
-                }) => current_size += x,
+                x => {
+                    let mut size = 0;
+                    let mut iter = x.iter().copied();
+                    loop {
+                        let b = iter.next().unwrap();
+                        if b == b' ' {
+                            break;
+                        }
+                        size *= 10;
+                        size += (b - b'0') as usize;
+                    }
+
+                    current_size += size;
+                }
             }
         }
 
@@ -113,7 +58,7 @@ impl Day07 {
             current_size += size;
         }
 
-        tree
+        Ok(("", Self(tree)))
     }
 }
 
@@ -122,15 +67,13 @@ impl Challenge for Day07 {
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
-        self.build_dir_tree().into_iter().filter(|x| *x <= 100000).sum()
+        self.0.into_iter().filter(|x| *x <= 100000).sum()
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        let sizes = self.build_dir_tree();
-
-        let minimum = sizes.last().unwrap() - 40_000_000;
-        sizes.into_iter().filter(|&v| v > minimum).min().unwrap()
+        let minimum = self.0.last().unwrap() - 40_000_000;
+        self.0.into_iter().filter(|&v| v > minimum).min().unwrap()
     }
 }
 
