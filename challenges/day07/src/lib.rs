@@ -1,3 +1,5 @@
+use std::collections::{HashMap, VecDeque};
+
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::{
     branch::alt,
@@ -76,7 +78,50 @@ impl Challenge for Day07 {
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
-        todo!()
+        let mut d: VecDeque<_> = self.0.into();
+
+        // remove known cd / ls pair
+        d.pop_front();
+        d.pop_front();
+
+        let mut dir = Vec::<&'static str>::new();
+        let mut sizes = HashMap::<Vec<&'static str>, usize>::new();
+        let mut current_size = 0;
+
+        for line in d {
+            match line {
+                Line::Command(Command::Cd(name)) => {
+                    let new = match name {
+                        ".." => dir[..dir.len() - 1].to_vec(),
+                        name => {
+                            let mut new = dir.clone();
+                            new.push(name);
+                            new
+                        }
+                    };
+                    for i in 1..=dir.len() {
+                        *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
+                    }
+                    *sizes.entry(dir).or_default() += current_size;
+                    dir = new;
+                    current_size = 0;
+                }
+                Line::Command(Command::Ls) => {}
+                Line::Entry(Entry { meta: Meta::Dir, .. }) => {}
+                Line::Entry(Entry {
+                    meta: Meta::Size(x), ..
+                }) => current_size += x,
+            }
+        }
+
+        let mut total = 0;
+        for (_, size) in sizes {
+            if size < 100000 {
+                total += size;
+            }
+        }
+
+        total
     }
 
     type Output2 = usize;
@@ -123,7 +168,7 @@ $ ls
     #[test]
     fn part_one() {
         let output = Day07::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_one(), 0);
+        assert_eq!(output.part_one(), 95437);
     }
 
     #[test]
