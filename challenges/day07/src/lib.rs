@@ -113,6 +113,10 @@ impl Challenge for Day07 {
                 }) => current_size += x,
             }
         }
+        for i in 1..=dir.len() {
+            *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
+        }
+        *sizes.entry(dir).or_default() += current_size;
 
         let mut total = 0;
         for (_, size) in sizes {
@@ -126,7 +130,49 @@ impl Challenge for Day07 {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        todo!()
+        let mut d: VecDeque<_> = self.0.into();
+
+        // remove known cd / ls pair
+        d.pop_front();
+        d.pop_front();
+
+        let mut dir = Vec::<&'static str>::new();
+        let mut sizes = HashMap::<Vec<&'static str>, usize>::new();
+        let mut current_size = 0;
+
+        for line in d {
+            match line {
+                Line::Command(Command::Cd(name)) => {
+                    let new = match name {
+                        ".." => dir[..dir.len() - 1].to_vec(),
+                        name => {
+                            let mut new = dir.clone();
+                            new.push(name);
+                            new
+                        }
+                    };
+                    for i in 1..=dir.len() {
+                        *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
+                    }
+                    *sizes.entry(dir).or_default() += current_size;
+                    dir = new;
+                    current_size = 0;
+                }
+                Line::Command(Command::Ls) => {}
+                Line::Entry(Entry { meta: Meta::Dir, .. }) => {}
+                Line::Entry(Entry {
+                    meta: Meta::Size(x), ..
+                }) => current_size += x,
+            }
+        }
+        for i in 1..=dir.len() {
+            *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
+        }
+        *sizes.entry(dir).or_default() += current_size;
+
+        let free = 70_000_000 - sizes[&[] as &[&'static str]];
+        let minimum = 30_000_000 - free;
+        sizes.into_values().filter(|&v| v > minimum).min().unwrap()
     }
 }
 
@@ -157,7 +203,8 @@ $ ls
 4060174 j
 8033020 d.log
 5626152 d.ext
-7214296 k";
+7214296 k
+";
 
     #[test]
     fn parse() {
@@ -174,6 +221,6 @@ $ ls
     #[test]
     fn part_two() {
         let output = Day07::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        assert_eq!(output.part_two(), 24933642);
     }
 }
