@@ -73,11 +73,8 @@ impl ChallengeParser for Day07 {
     }
 }
 
-impl Challenge for Day07 {
-    const NAME: &'static str = env!("CARGO_PKG_NAME");
-
-    type Output1 = usize;
-    fn part_one(self) -> Self::Output1 {
+impl Day07 {
+    fn build_dir_tree(self) -> HashMap<Vec<&'static str>, usize> {
         let mut d: VecDeque<_> = self.0.into();
 
         // remove known cd / ls pair
@@ -118,8 +115,17 @@ impl Challenge for Day07 {
         }
         *sizes.entry(dir).or_default() += current_size;
 
+        sizes
+    }
+}
+
+impl Challenge for Day07 {
+    const NAME: &'static str = env!("CARGO_PKG_NAME");
+
+    type Output1 = usize;
+    fn part_one(self) -> Self::Output1 {
         let mut total = 0;
-        for (_, size) in sizes {
+        for (_, size) in self.build_dir_tree() {
             if size < 100000 {
                 total += size;
             }
@@ -130,45 +136,7 @@ impl Challenge for Day07 {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        let mut d: VecDeque<_> = self.0.into();
-
-        // remove known cd / ls pair
-        d.pop_front();
-        d.pop_front();
-
-        let mut dir = Vec::<&'static str>::new();
-        let mut sizes = HashMap::<Vec<&'static str>, usize>::new();
-        let mut current_size = 0;
-
-        for line in d {
-            match line {
-                Line::Command(Command::Cd(name)) => {
-                    let new = match name {
-                        ".." => dir[..dir.len() - 1].to_vec(),
-                        name => {
-                            let mut new = dir.clone();
-                            new.push(name);
-                            new
-                        }
-                    };
-                    for i in 1..=dir.len() {
-                        *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
-                    }
-                    *sizes.entry(dir).or_default() += current_size;
-                    dir = new;
-                    current_size = 0;
-                }
-                Line::Command(Command::Ls) => {}
-                Line::Entry(Entry { meta: Meta::Dir, .. }) => {}
-                Line::Entry(Entry {
-                    meta: Meta::Size(x), ..
-                }) => current_size += x,
-            }
-        }
-        for i in 1..=dir.len() {
-            *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
-        }
-        *sizes.entry(dir).or_default() += current_size;
+        let sizes = self.build_dir_tree();
 
         let free = 70_000_000 - sizes[&[] as &[&'static str]];
         let minimum = 30_000_000 - free;
