@@ -10,7 +10,6 @@ nom = "7.1"
 parsers = { path = "../../parsers" }
 aoc = { path = "../../aoc" }
 arrayvec = "0.7"
-fxhash = "0.2.1"
 
 [dev-dependencies]
 criterion = "0.4"

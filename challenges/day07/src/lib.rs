@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::ArrayVec;
-use fxhash::FxBuildHasher;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_until},
@@ -76,40 +73,47 @@ impl ChallengeParser for Day07 {
 }
 
 impl Day07 {
-    fn build_dir_tree(self) -> HashMap<ArrayVec<&'static str, 9>, usize, FxBuildHasher> {
-        let mut dir = ArrayVec::new();
-        let mut sizes = HashMap::with_capacity_and_hasher(166, Default::default());
+    fn build_dir_tree(self) -> Vec<usize> {
+        // this is the stack of the current nested directory sizes
+        let mut stack = ArrayVec::<usize, 10>::new();
+
+        // this is a store of all final directory sizes
+        let mut tree = Vec::<usize>::with_capacity(166);
+
+        // size of the current directory
         let mut current_size = 0;
 
-        let mut lines = self.0.into_iter();
-        lines.next();
-        lines.next();
-        for line in lines {
+        for line in self.0 {
             match line {
-                Line::Command(Command::Cd(name)) => {
-                    for i in 1..=dir.len() {
-                        *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
-                    }
-                    *sizes.entry(dir.clone()).or_default() += current_size;
-                    current_size = 0;
-                    match name {
-                        ".." => drop(dir.pop()),
-                        name => dir.push(name),
-                    };
+                // on `cd ..`, push the final size to the tree
+                // and update the current_size value with the previously saved value
+                Line::Command(Command::Cd("..")) => {
+                    let size = stack.pop().unwrap();
+                    tree.push(current_size);
+                    current_size += size;
                 }
-                Line::Command(Command::Ls) => {}
-                Line::Entry(Entry { meta: Meta::Dir, .. }) => {}
+                // on `cd foo`, save the current dir size in the stack
+                // and reset it to 0 for the sub directory
+                Line::Command(Command::Cd(_)) => {
+                    stack.push(current_size);
+                    current_size = 0;
+                }
+                // irrelevant to the algorithm
+                Line::Command(Command::Ls) | Line::Entry(Entry { meta: Meta::Dir, .. }) => {}
+                // record file size
                 Line::Entry(Entry {
                     meta: Meta::Size(x), ..
                 }) => current_size += x,
             }
         }
-        for i in 1..=dir.len() {
-            *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
-        }
-        *sizes.entry(dir).or_default() += current_size;
 
-        sizes
+        // final `cd ..`s
+        while let Some(size) = stack.pop() {
+            tree.push(current_size);
+            current_size += size;
+        }
+
+        tree
     }
 }
 
@@ -118,23 +122,15 @@ impl Challenge for Day07 {
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
-        let mut total = 0;
-        for (_, size) in self.build_dir_tree() {
-            if size < 100000 {
-                total += size;
-            }
-        }
-
-        total
+        self.build_dir_tree().into_iter().filter(|x| *x <= 100000).sum()
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
         let sizes = self.build_dir_tree();
 
-        let free = 70_000_000 - sizes[&[] as &[&'static str]];
-        let minimum = 30_000_000 - free;
-        sizes.into_values().filter(|&v| v > minimum).min().unwrap()
+        let minimum = sizes.last().unwrap() - 40_000_000;
+        sizes.into_iter().filter(|&v| v > minimum).min().unwrap()
     }
 }
 
