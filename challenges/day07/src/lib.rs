@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::ArrayVec;
+use fxhash::FxBuildHasher;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_until},
@@ -75,9 +76,9 @@ impl ChallengeParser for Day07 {
 }
 
 impl Day07 {
-    fn build_dir_tree(self) -> HashMap<ArrayVec<&'static str, 9>, usize> {
+    fn build_dir_tree(self) -> HashMap<ArrayVec<&'static str, 9>, usize, FxBuildHasher> {
         let mut dir = ArrayVec::new();
-        let mut sizes = HashMap::with_capacity(166);
+        let mut sizes = HashMap::with_capacity_and_hasher(166, Default::default());
         let mut current_size = 0;
 
         for line in self.0 {
