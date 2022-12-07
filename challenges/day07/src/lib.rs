@@ -81,24 +81,21 @@ impl Day07 {
         let mut sizes = HashMap::with_capacity_and_hasher(166, Default::default());
         let mut current_size = 0;
 
-        for line in self.0 {
+        let mut lines = self.0.into_iter();
+        lines.next();
+        lines.next();
+        for line in lines {
             match line {
                 Line::Command(Command::Cd(name)) => {
-                    let new = match name {
-                        "/" => ArrayVec::new(),
-                        ".." => ArrayVec::try_from(&dir[..dir.len() - 1]).unwrap(),
-                        name => {
-                            let mut new = dir.clone();
-                            new.push(name);
-                            new
-                        }
-                    };
                     for i in 1..=dir.len() {
                         *sizes.get_mut(&dir[..i - 1]).unwrap() += current_size;
                     }
-                    *sizes.entry(dir).or_default() += current_size;
-                    dir = new;
+                    *sizes.entry(dir.clone()).or_default() += current_size;
                     current_size = 0;
+                    match name {
+                        ".." => drop(dir.pop()),
+                        name => dir.push(name),
+                    };
                 }
                 Line::Command(Command::Ls) => {}
                 Line::Entry(Entry { meta: Meta::Dir, .. }) => {}
