@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::Path};
+use std::{fmt::Display, path::Path, time::Instant};
 
 const YEAR: usize = 2022;
 
@@ -16,16 +16,22 @@ pub trait Challenge {
     fn part_two(self) -> Self::Output2;
 }
 
-pub fn check<C: Challenge + Clone>(challenge: C) {
+pub fn check<C: Parser + Clone>(input: &'static str) {
+    let start = Instant::now();
+    let challenge = C::parse(input).unwrap().1;
     let p1 = challenge.clone().part_one();
-    println!("\tAnswer to part one: {}", p1);
-
     let p2 = challenge.part_two();
-    println!("\tAnswer to part two: {}\n", p2);
+    println!("took: {:?}", start.elapsed());
+
+    println!("\tAnswer to part one: {p1}");
+    println!("\tAnswer to part two: {p2}");
 }
 
-pub fn run<C: Challenge>(challenge: C) {
+pub fn run<C: Parser>(input: &'static str) {
     println!("\nRunning challenge {}", C::NAME);
+
+    let start = Instant::now();
+    let challenge = C::parse(input).unwrap().1;
 
     let file = Path::new("challenges").join(C::NAME).join("README.md");
     let readme = std::fs::read_to_string(file).expect("could not read file");
@@ -33,11 +39,12 @@ pub fn run<C: Challenge>(challenge: C) {
 
     if part_one {
         let p1 = challenge.part_one();
-        println!("\tAnswer to part one: {}", p1);
+        println!("took: {:?}", start.elapsed());
+        println!("\tAnswer to part one: {p1}. ({:?})", start.elapsed());
         submit::<C, _>(1, p1);
     } else {
         let p2 = challenge.part_two();
-        println!("\tAnswer to part two: {}\n", p2);
+        println!("\tAnswer to part two: {p2}. ({:?})", start.elapsed());
         submit::<C, _>(2, p2);
     }
 }

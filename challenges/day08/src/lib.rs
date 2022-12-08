@@ -3,98 +3,28 @@
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct Day08 {
-    heights: &'static [u8],
-    stride: usize,
-}
+#[derive(Debug, PartialEq, Clone)]
+pub struct Day08(usize, usize);
 
 impl ChallengeParser for Day08 {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        let line = input.as_bytes().iter().position(|&b| b == b'\n').unwrap_or(input.len());
+        let input = input.as_bytes();
+        let line = input.iter().position(|&b| b == b'\n').unwrap_or(input.len());
         let stride = line + 1;
 
-        Ok((
-            "",
-            Self {
-                heights: input.as_bytes(),
-                stride,
-            },
-        ))
-    }
-}
-
-impl Challenge for Day08 {
-    const NAME: &'static str = env!("CARGO_PKG_NAME");
-
-    type Output1 = usize;
-    fn part_one(self) -> Self::Output1 {
-        let width = self.stride - 1;
-        let height = self.heights.len() / self.stride;
-
-        let mut set = vec![0; self.heights.len()];
-
-        // left-to-right
-        for j in 1..height - 1 {
-            let mut max = self.heights[j * self.stride];
-            set[j * self.stride] = 1;
-            for i in 1..width - 1 {
-                let b = self.heights[j * self.stride + i];
-                if b > max {
-                    max = b;
-                    set[j * self.stride + i] = 1;
-                }
-            }
-            let mut max = self.heights[j * self.stride + self.stride - 2];
-            set[j * self.stride + self.stride - 2] = 1;
-            for i in (1..width - 1).rev() {
-                let b = self.heights[j * self.stride + i];
-                if b > max {
-                    max = b;
-                    set[j * self.stride + i] = 1;
-                }
-            }
-        }
-
-        // top-to-bottom
-        for i in 1..width - 1 {
-            let mut max = self.heights[i];
-            set[i] = 1;
-            for j in 1..height - 1 {
-                let b = self.heights[j * self.stride + i];
-                if b > max {
-                    max = b;
-                    set[j * self.stride + i] = 1;
-                }
-            }
-            let mut max = self.heights[(height - 1) * self.stride + i];
-            set[(height - 1) * self.stride + i] = 1;
-            for j in (1..height - 1).rev() {
-                let b = self.heights[j * self.stride + i];
-                if b > max {
-                    max = b;
-                    set[j * self.stride + i] = 1;
-                }
-            }
-        }
-
-        set.into_iter().sum::<usize>() + 4 /* corners */
-    }
-
-    type Output2 = usize;
-    fn part_two(self) -> Self::Output2 {
-        let mut set = vec![1; self.heights.len()];
-        let mut stack = Vec::<(usize, u8)>::with_capacity(usize::min(self.stride, self.heights.len() / self.stride));
+        let mut set = vec![(1, 0); input.len()];
+        let mut stack = Vec::<(usize, u8)>::with_capacity(usize::min(stride, input.len() / stride));
 
         let mut i = 0;
         let mut line_start = 0;
-        while i < self.heights.len() {
-            let b = self.heights[i];
+        while i < input.len() {
+            let b = input[i];
 
             if b == b'\n' {
                 // reset row
                 for (idx, _) in stack.drain(..) {
-                    set[idx] *= i - idx - 1; // rightward view distance
+                    set[idx].0 *= i - idx - 1; // rightward view distance
+                    set[idx].1 = 1; // this tree is visible from the right edge
                 }
 
                 line_start = i + 1;
@@ -103,16 +33,19 @@ impl Challenge for Day08 {
                     match stack.last() {
                         Some((_, v)) if *v <= b => {
                             let (idx, v) = stack.pop().unwrap();
-                            set[idx] *= i - idx; // rightward view distance
+                            set[idx].0 *= i - idx; // rightward view distance
                             if v == b {
                                 break idx;
                             }
                         }
                         Some((idx, _)) => break *idx,
-                        None => break line_start,
+                        None => {
+                            set[i].1 = 1; // this tree is visible from the left edge
+                            break line_start;
+                        }
                     }
                 };
-                set[i] *= i - start; // leftward view distance
+                set[i].0 *= i - start; // leftward view distance
 
                 let _ = stack.push_within_capacity((i, b));
             }
@@ -123,40 +56,61 @@ impl Challenge for Day08 {
         i = 0;
         line_start = 0;
         loop {
-            if i >= self.heights.len() {
+            if i >= input.len() {
                 // reset column
                 for (idx, _) in stack.drain(..) {
-                    set[idx] *= (i - idx) / self.stride - 1; // downward view distance
+                    set[idx].0 *= (i - idx) / stride - 1; // downward view distance
+                    set[idx].1 = 1; // this tree is visible from the bottom edge
                 }
-                i %= self.stride;
+                i %= stride;
                 i += 1;
-                if self.heights[i] == b'\n' {
+                if input[i] == b'\n' {
                     break;
                 }
                 line_start = i;
             } else {
-                let b = self.heights[i];
+                let b = input[i];
                 let start = loop {
                     match stack.last() {
                         Some((_, v)) if *v <= b => {
                             let (idx, v) = stack.pop().unwrap();
-                            set[idx] *= (i - idx) / self.stride; // downward view distance
+                            set[idx].0 *= (i - idx) / stride; // downward view distance
                             if v == b {
                                 break idx;
                             }
                         }
                         Some((idx, _)) => break *idx,
-                        None => break line_start,
+                        None => {
+                            set[i].1 = 1; // this tree is visible from the top edge
+                            break line_start;
+                        }
                     }
                 };
-                set[i] *= (i - start) / self.stride; // upward view distance
+                set[i].0 *= (i - start) / stride; // upward view distance
 
                 let _ = stack.push_within_capacity((i, b));
-                i += self.stride;
+                i += stride;
             }
         }
+        let (view, seen) = set
+            .into_iter()
+            .fold((0, 0), |(max, sum), (view, seen)| (usize::max(max, view), sum + seen));
 
-        set.into_iter().max().unwrap_or(0)
+        Ok(("", Self(view, seen)))
+    }
+}
+
+impl Challenge for Day08 {
+    const NAME: &'static str = env!("CARGO_PKG_NAME");
+
+    type Output1 = usize;
+    fn part_one(self) -> Self::Output1 {
+        self.1
+    }
+
+    type Output2 = usize;
+    fn part_two(self) -> Self::Output2 {
+        self.0
     }
 }
 

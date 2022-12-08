@@ -1,6 +1,13 @@
-use std::{marker::PhantomData, ops::{Range, RangeFrom, RangeTo}};
+use std::{
+    marker::PhantomData,
+    ops::{Range, RangeFrom, RangeTo},
+};
 
-use nom::{error::{FromExternalError, ParseError}, IResult, Parser, character::complete::line_ending, Slice, InputIter, InputLength, Compare};
+use nom::{
+    character::complete::line_ending,
+    error::{FromExternalError, ParseError},
+    Compare, IResult, InputIter, InputLength, Parser, Slice,
+};
 
 pub use self::{
     map_res::MapRes,
