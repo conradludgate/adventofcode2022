@@ -48,7 +48,7 @@ impl ChallengeParser for Day07 {
                 // record file size
                 _ => {
                     let mut number = u8x8::default();
-                    let len = line.len().min(8);
+                    let len = line.len().clamp(0, 8);
                     number.as_mut_array()[..len].copy_from_slice(&line[..len]);
 
                     let number = (number - u8x8::splat(b'0')).cast();
