@@ -1,3 +1,5 @@
+#![feature(vec_push_within_capacity)]
+
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
@@ -81,145 +83,78 @@ impl Challenge for Day08 {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        // let width = self.stride - 1;
-        let height = self.heights.len() / self.stride;
-
         let mut set = vec![1; self.heights.len()];
-        // let mut columns = vec![0; self.heights.len()];
+        let mut stack = Vec::<(usize, u8)>::with_capacity(usize::min(self.stride, self.heights.len() / self.stride));
 
-        // for (i, b) in self.heights.iter().copied().enumerate() {
-        //     if b != b'\n' {
-        //         let x = i % self.stride;
-        //         let y = i / self.stride;
-        //         columns[y + x * (height + 1)] = b;
-        //     }
-        // }
+        let mut i = 0;
+        let mut line_start = 0;
+        while i < self.heights.len() {
+            let b = self.heights[i];
 
-        // left-to-right
-        for v in b'0'..=b'9' {
-            // last is the index of the most recent entry that is >= v
-            let mut last = 0;
-            let mut lastb = v;
-            let mut i = 0;
-            loop {
-                let dist = i - last;
-                if last >= self.heights.len() || i >= self.heights.len() {
-                    unsafe { std::hint::unreachable_unchecked() }
+            if b == b'\n' {
+                // reset row
+                for (idx, _) in stack.drain(..) {
+                    set[idx] *= i - idx - 1; // rightward view distance
                 }
 
-                let b = self.heights[i];
-                if b == b'\n' {
-                    // if the last tracked was v, we should update that value
-                    if lastb == v {
-                        set[last] *= dist - 1;
+                line_start = i + 1;
+            } else {
+                let start = loop {
+                    match stack.last() {
+                        Some((_, v)) if *v <= b => {
+                            let (idx, v) = stack.pop().unwrap();
+                            set[idx] *= i - idx; // rightward view distance
+                            if v == b {
+                                break idx;
+                            }
+                        }
+                        Some((idx, _)) => break *idx,
+                        None => break line_start,
                     }
-                    i += 1;
-                    if i >= self.heights.len() {
-                        break
-                    }
-                    last = i;
-                    lastb = self.heights[i];
-                    continue;
-                }
+                };
+                set[i] *= i - start; // leftward view distance
 
-                if b >= v {
-                    // if this byte is v, we should track the runlength since last
-                    if b == v {
-                        set[i] *= dist;
-                    }
-                    // if the last tracked was v, we should update that value
-                    if lastb == v {
-                        set[last] *= dist;
-                    }
-                    last = i;
-                    lastb = b;
-                }
-                i += 1;
+                let _ = stack.push_within_capacity((i, b));
             }
+
+            i += 1;
         }
-        // for line in columns.chunks(height+1) {
-        //     println!("{:?}", &line)
-        // }
-        // for line in set.chunks(self.stride) {
-        //     println!("{:?}", &line)
-        // }
 
-        // for v in (b'0'..=b'9').rev() {
-        //     // last is the index of the most recent entry that is >= v
-        //     let mut last = 0;
-        //     let mut last_set = 0;
-        //     for (i, b) in columns.iter().copied().enumerate() {
-        //         if b == 0 {
-        //             // if the last tracked was v, we should update that value
-        //             if columns[last] == v {
-        //                 set[last_set] *= i - last - 1;
-        //             }
-        //             last = i + 1;
-        //             continue;
-        //         }
-
-        //         if b >= v {
-        //             let x = i % (height + 1);
-        //             let y = i / (height + 1);
-        //             let set_i = y + x * self.stride;
-
-        //             // if this byte is v, we should track the runlength since last
-        //             if b == v {
-        //                 set[set_i] *= i - last;
-        //             }
-        //             // if the last tracked was v, we should update that value
-        //             if columns[last] == v {
-        //                 set[last_set] *= i - last;
-        //             }
-        //             last = i;
-        //             last_set = set_i;
-        //         }
-        //     }
-        // }
-        // for line in set.chunks(self.stride) {
-        //     println!("{:?}", &line)
-        // }
-
-        // top-to-bottom
-        for v in b'0'..=b'9' {
-            // last is the index of the most recent entry that is >= v
-            let mut last = 0;
-            let mut i = 0;
-            loop {
-                if i >= self.heights.len() {
-                    // if the last tracked was v, we should update that value
-                    if self.heights[last] == v {
-                        set[last] *= (i - last) / self.stride - 1;
-                    }
-                    i %= self.heights.len();
-                    i += 1;
-                    last = i;
+        i = 0;
+        line_start = 0;
+        loop {
+            if i >= self.heights.len() {
+                // reset column
+                for (idx, _) in stack.drain(..) {
+                    set[idx] *= (i - idx) / self.stride - 1; // downward view distance
                 }
-                let b = self.heights[i];
-
-                if b == b'\n' {
+                i %= self.stride;
+                i += 1;
+                if self.heights[i] == b'\n' {
                     break;
                 }
-
-                if b >= v {
-                    // if this byte is v, we should track the runlength since last
-                    if b == v {
-                        set[i] *= (i - last) / self.stride;
+                line_start = i;
+            } else {
+                let b = self.heights[i];
+                let start = loop {
+                    match stack.last() {
+                        Some((_, v)) if *v <= b => {
+                            let (idx, v) = stack.pop().unwrap();
+                            set[idx] *= (i - idx) / self.stride; // downward view distance
+                            if v == b {
+                                break idx;
+                            }
+                        }
+                        Some((idx, _)) => break *idx,
+                        None => break line_start,
                     }
-                    // if the last tracked was v, we should update that value
-                    if self.heights[last] == v {
-                        set[last] *= (i - last) / self.stride;
-                    }
-                    last = i;
-                }
+                };
+                set[i] *= (i - start) / self.stride; // upward view distance
 
+                let _ = stack.push_within_capacity((i, b));
                 i += self.stride;
             }
         }
-
-        // for line in set.chunks(self.stride) {
-        //     println!("{:?}", &line[..width])
-        // }
 
         set.into_iter().max().unwrap_or(0)
     }
