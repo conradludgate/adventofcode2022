@@ -81,59 +81,145 @@ impl Challenge for Day08 {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        let width = self.stride - 1;
+        // let width = self.stride - 1;
         let height = self.heights.len() / self.stride;
 
-        let mut set = vec![0; self.heights.len()];
+        let mut set = vec![1; self.heights.len()];
+        // let mut columns = vec![0; self.heights.len()];
 
-        for i in 1..width - 1 {
-            for j in 1..height - 1 {
-                let b = self.heights[j * self.stride + i];
-                let mut score = 1;
+        // for (i, b) in self.heights.iter().copied().enumerate() {
+        //     if b != b'\n' {
+        //         let x = i % self.stride;
+        //         let y = i / self.stride;
+        //         columns[y + x * (height + 1)] = b;
+        //     }
+        // }
 
-                let mut ki = i;
-                while ki + 1 < width {
-                    ki += 1;
-                    let b1 = self.heights[j * self.stride + ki];
-                    if b1 >= b {
-                        break;
-                    }
+        // left-to-right
+        for v in b'0'..=b'9' {
+            // last is the index of the most recent entry that is >= v
+            let mut last = 0;
+            let mut lastb = v;
+            let mut i = 0;
+            loop {
+                let dist = i - last;
+                if last >= self.heights.len() || i >= self.heights.len() {
+                    unsafe { std::hint::unreachable_unchecked() }
                 }
-                score *= ki - i;
 
-                let mut ki = i;
-                while ki >= 1 {
-                    ki -= 1;
-                    let b1 = self.heights[j * self.stride + ki];
-                    if b1 >= b {
-                        break;
+                let b = self.heights[i];
+                if b == b'\n' {
+                    // if the last tracked was v, we should update that value
+                    if lastb == v {
+                        set[last] *= dist - 1;
                     }
-                }
-                score *= i - ki;
-
-                let mut kj = j;
-                while kj + 1 < height {
-                    kj += 1;
-                    let b1 = self.heights[kj * self.stride + i];
-                    if b1 >= b {
-                        break;
+                    i += 1;
+                    if i >= self.heights.len() {
+                        break
                     }
+                    last = i;
+                    lastb = self.heights[i];
+                    continue;
                 }
-                score *= kj - j;
 
-                let mut kj = j;
-                while kj >= 1 {
-                    kj -= 1;
-                    let b1 = self.heights[kj * self.stride + i];
-                    if b1 >= b {
-                        break;
+                if b >= v {
+                    // if this byte is v, we should track the runlength since last
+                    if b == v {
+                        set[i] *= dist;
                     }
+                    // if the last tracked was v, we should update that value
+                    if lastb == v {
+                        set[last] *= dist;
+                    }
+                    last = i;
+                    lastb = b;
                 }
-                score *= j - kj;
-
-                set[j * self.stride + i] = score;
+                i += 1;
             }
         }
+        // for line in columns.chunks(height+1) {
+        //     println!("{:?}", &line)
+        // }
+        // for line in set.chunks(self.stride) {
+        //     println!("{:?}", &line)
+        // }
+
+        // for v in (b'0'..=b'9').rev() {
+        //     // last is the index of the most recent entry that is >= v
+        //     let mut last = 0;
+        //     let mut last_set = 0;
+        //     for (i, b) in columns.iter().copied().enumerate() {
+        //         if b == 0 {
+        //             // if the last tracked was v, we should update that value
+        //             if columns[last] == v {
+        //                 set[last_set] *= i - last - 1;
+        //             }
+        //             last = i + 1;
+        //             continue;
+        //         }
+
+        //         if b >= v {
+        //             let x = i % (height + 1);
+        //             let y = i / (height + 1);
+        //             let set_i = y + x * self.stride;
+
+        //             // if this byte is v, we should track the runlength since last
+        //             if b == v {
+        //                 set[set_i] *= i - last;
+        //             }
+        //             // if the last tracked was v, we should update that value
+        //             if columns[last] == v {
+        //                 set[last_set] *= i - last;
+        //             }
+        //             last = i;
+        //             last_set = set_i;
+        //         }
+        //     }
+        // }
+        // for line in set.chunks(self.stride) {
+        //     println!("{:?}", &line)
+        // }
+
+        // top-to-bottom
+        for v in b'0'..=b'9' {
+            // last is the index of the most recent entry that is >= v
+            let mut last = 0;
+            let mut i = 0;
+            loop {
+                if i >= self.heights.len() {
+                    // if the last tracked was v, we should update that value
+                    if self.heights[last] == v {
+                        set[last] *= (i - last) / self.stride - 1;
+                    }
+                    i %= self.heights.len();
+                    i += 1;
+                    last = i;
+                }
+                let b = self.heights[i];
+
+                if b == b'\n' {
+                    break;
+                }
+
+                if b >= v {
+                    // if this byte is v, we should track the runlength since last
+                    if b == v {
+                        set[i] *= (i - last) / self.stride;
+                    }
+                    // if the last tracked was v, we should update that value
+                    if self.heights[last] == v {
+                        set[last] *= (i - last) / self.stride;
+                    }
+                    last = i;
+                }
+
+                i += self.stride;
+            }
+        }
+
+        // for line in set.chunks(self.stride) {
+        //     println!("{:?}", &line[..width])
+        // }
 
         set.into_iter().max().unwrap_or(0)
     }
