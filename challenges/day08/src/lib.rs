@@ -4,7 +4,7 @@ use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day08(usize, usize);
+pub struct Day08(u32, u32);
 
 impl ChallengeParser for Day08 {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
@@ -12,89 +12,89 @@ impl ChallengeParser for Day08 {
         let line = input.iter().position(|&b| b == b'\n').unwrap_or(input.len());
         let stride = line + 1;
 
+        let width = stride - 1;
+        let height = input.len() / stride;
+
         let mut set = vec![(1, 0); input.len()];
-        let mut stack = Vec::<(usize, u8)>::with_capacity(usize::min(stride, input.len() / stride));
+        let mut row_stack = Vec::<u32>::with_capacity(height);
 
-        let mut i = 0;
-        let mut line_start = 0;
-        while i < input.len() {
-            let b = input[i];
+        let mut col_stacks_idx = vec![0u32; stride - 1];
+        let mut col_stacks = vec![0u32; width * height];
 
+        let mut row_start = 0;
+        for (i, b) in input.iter().copied().enumerate() {
             if b == b'\n' {
-                // reset row
-                for (idx, _) in stack.drain(..) {
-                    set[idx].0 *= i - idx - 1; // rightward view distance
-                    set[idx].1 = 1; // this tree is visible from the right edge
+                // finish row
+                for idx in row_stack.drain(..) {
+                    set[idx as usize].0 *= i as u32 - idx - 1; // rightward view distance
+                    set[idx as usize].1 = 1; // this tree is visible from the right edge
                 }
 
-                line_start = i + 1;
+                // reset row_start
+                row_start = i + 1;
             } else {
+                // deal with this entry in the row
                 let start = loop {
-                    match stack.last() {
-                        Some((_, v)) if *v <= b => {
-                            let (idx, v) = stack.pop().unwrap();
-                            set[idx].0 *= i - idx; // rightward view distance
+                    match row_stack.last() {
+                        Some(idx) if input[*idx as usize] <= b => {
+                            let idx = row_stack.pop().unwrap();
+                            let v = input[idx as usize];
+                            set[idx as usize].0 *= i as u32 - idx; // rightward view distance
                             if v == b {
                                 break idx;
                             }
                         }
-                        Some((idx, _)) => break *idx,
+                        Some(idx) => break *idx,
                         None => {
                             set[i].1 = 1; // this tree is visible from the left edge
-                            break line_start;
+                            break row_start as u32;
                         }
                     }
                 };
-                set[i].0 *= i - start; // leftward view distance
+                set[i].0 *= i as u32 - start; // leftward view distance
 
-                let _ = stack.push_within_capacity((i, b));
-            }
+                let _ = row_stack.push_within_capacity(i as u32);
 
-            i += 1;
-        }
-
-        i = 0;
-        line_start = 0;
-        loop {
-            if i >= input.len() {
-                // reset column
-                for (idx, _) in stack.drain(..) {
-                    set[idx].0 *= (i - idx) / stride - 1; // downward view distance
-                    set[idx].1 = 1; // this tree is visible from the bottom edge
-                }
-                i %= stride;
-                i += 1;
-                if input[i] == b'\n' {
-                    break;
-                }
-                line_start = i;
-            } else {
-                let b = input[i];
+                // deal with this entry in the col
+                let col = i % stride;
+                let col_stack_idx = &mut col_stacks_idx[col];
+                let col_stack = col_stacks.chunks_exact_mut(height).nth(col).unwrap();
                 let start = loop {
-                    match stack.last() {
-                        Some((_, v)) if *v <= b => {
-                            let (idx, v) = stack.pop().unwrap();
-                            set[idx].0 *= (i - idx) / stride; // downward view distance
-                            if v == b {
-                                break idx;
-                            }
+                    if *col_stack_idx >= 1 {
+                        let idx = col_stack[*col_stack_idx as usize - 1];
+                        let v = input[idx as usize];
+                        if v <= b {
+                            *col_stack_idx -= 1;
+                            set[idx as usize].0 *= (i as u32 - idx) / stride as u32;
+                            // downward view distance
                         }
-                        Some((idx, _)) => break *idx,
-                        None => {
-                            set[i].1 = 1; // this tree is visible from the top edge
-                            break line_start;
+                        if v >= b {
+                            break idx;
                         }
+                    } else {
+                        set[i].1 = 1; // this tree is visible from the top edge
+                        break col as u32;
                     }
                 };
-                set[i].0 *= (i - start) / stride; // upward view distance
+                set[i].0 *= (i as u32 - start) / stride as u32; // upward view distance
 
-                let _ = stack.push_within_capacity((i, b));
-                i += stride;
+                col_stack[*col_stack_idx as usize] = i as u32;
+                *col_stack_idx += 1;
             }
         }
+
+        // finish cols
+        for (i, (col_stack, idx)) in col_stacks.chunks_mut(height).zip(col_stacks_idx).enumerate() {
+            let i = input.len() + i;
+            for idx in col_stack[..idx as usize].iter().copied() {
+                set[idx as usize].0 *= (i as u32 - idx) / stride as u32 - 1; // downward view distance
+                set[idx as usize].1 = 1; // this tree is visible from the bottom edge
+            }
+        }
+
         let (view, seen) = set
             .into_iter()
-            .fold((0, 0), |(max, sum), (view, seen)| (usize::max(max, view), sum + seen));
+            .fold((0, 0), |(max, sum), (view, seen)| (u32::max(max, view), sum + seen));
 
         Ok(("", Self(view, seen)))
     }
@@ -103,12 +103,12 @@ impl ChallengeParser for Day08 {
 impl Challenge for Day08 {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
-    type Output1 = usize;
+    type Output1 = u32;
     fn part_one(self) -> Self::Output1 {
         self.1
     }
 
-    type Output2 = usize;
+    type Output2 = u32;
     fn part_two(self) -> Self::Output2 {
         self.0
     }
