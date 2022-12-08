@@ -33,45 +33,45 @@ impl Challenge for Day08 {
         let mut set = vec![0; self.heights.len()];
 
         // left-to-right
-        for j in 1..height-1 {
-            let mut max = self.heights[j*self.stride];
-            set[j*self.stride] = 1;
-            for i in 1..width-1 {
-                let b = self.heights[j*self.stride + i];
+        for j in 1..height - 1 {
+            let mut max = self.heights[j * self.stride];
+            set[j * self.stride] = 1;
+            for i in 1..width - 1 {
+                let b = self.heights[j * self.stride + i];
                 if b > max {
                     max = b;
-                    set[j*self.stride + i] = 1;
+                    set[j * self.stride + i] = 1;
                 }
             }
-            let mut max = self.heights[j*self.stride+self.stride-2];
-            set[j*self.stride+self.stride-2] = 1;
-            for i in (1..width-1).rev() {
-                let b = self.heights[j*self.stride + i];
+            let mut max = self.heights[j * self.stride + self.stride - 2];
+            set[j * self.stride + self.stride - 2] = 1;
+            for i in (1..width - 1).rev() {
+                let b = self.heights[j * self.stride + i];
                 if b > max {
                     max = b;
-                    set[j*self.stride + i] = 1;
+                    set[j * self.stride + i] = 1;
                 }
             }
         }
 
         // top-to-bottom
-        for i in 1..width-1 {
+        for i in 1..width - 1 {
             let mut max = self.heights[i];
             set[i] = 1;
-            for j in 1..height-1 {
-                let b = self.heights[j*self.stride + i];
+            for j in 1..height - 1 {
+                let b = self.heights[j * self.stride + i];
                 if b > max {
                     max = b;
-                    set[j*self.stride + i] = 1;
+                    set[j * self.stride + i] = 1;
                 }
             }
-            let mut max = self.heights[(height-1)*self.stride + i];
-            set[(height-1)*self.stride + i] = 1;
-            for j in (1..height-1).rev() {
-                let b = self.heights[j*self.stride + i];
+            let mut max = self.heights[(height - 1) * self.stride + i];
+            set[(height - 1) * self.stride + i] = 1;
+            for j in (1..height - 1).rev() {
+                let b = self.heights[j * self.stride + i];
                 if b > max {
                     max = b;
-                    set[j*self.stride + i] = 1;
+                    set[j * self.stride + i] = 1;
                 }
             }
         }
@@ -81,7 +81,61 @@ impl Challenge for Day08 {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        todo!()
+        let width = self.stride - 1;
+        let height = self.heights.len() / self.stride;
+
+        let mut set = vec![0; self.heights.len()];
+
+        for i in 1..width - 1 {
+            for j in 1..height - 1 {
+                let b = self.heights[j * self.stride + i];
+                let mut score = 1;
+
+                let mut ki = i;
+                while ki + 1 < width {
+                    ki += 1;
+                    let b1 = self.heights[j * self.stride + ki];
+                    if b1 >= b {
+                        break;
+                    }
+                }
+                score *= ki - i;
+
+                let mut ki = i;
+                while ki >= 1 {
+                    ki -= 1;
+                    let b1 = self.heights[j * self.stride + ki];
+                    if b1 >= b {
+                        break;
+                    }
+                }
+                score *= i - ki;
+
+                let mut kj = j;
+                while kj + 1 < height {
+                    kj += 1;
+                    let b1 = self.heights[kj * self.stride + i];
+                    if b1 >= b {
+                        break;
+                    }
+                }
+                score *= kj - j;
+
+                let mut kj = j;
+                while kj >= 1 {
+                    kj -= 1;
+                    let b1 = self.heights[kj * self.stride + i];
+                    if b1 >= b {
+                        break;
+                    }
+                }
+                score *= j - kj;
+
+                set[j * self.stride + i] = score;
+            }
+        }
+
+        set.into_iter().max().unwrap_or(0)
     }
 }
 
@@ -112,6 +166,6 @@ mod tests {
     #[test]
     fn part_two() {
         let output = Day08::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        assert_eq!(output.part_two(), 8);
     }
 }
