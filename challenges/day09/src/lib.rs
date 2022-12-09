@@ -1,18 +1,16 @@
-use std::collections::HashSet;
-
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(usize, usize);
+pub struct Solution(u32, u32);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        let mut nine = HashSet::with_capacity_and_hasher(input.len(), fxhash::FxBuildHasher::default());
-        let mut one = HashSet::with_capacity_and_hasher(input.len(), fxhash::FxBuildHasher::default());
+        let mut nine: Vec<u64> = Vec::with_capacity(input.len().pow(2));
+        let mut one: Vec<u64> = Vec::with_capacity(input.len().pow(2));
         let mut knots = [(0, 0); 10];
-        one.insert((0, 0));
-        nine.insert((0, 0));
+        one.push(1);
+        nine.push(1);
 
         for line in input.as_bytes().split(|b| *b == b'\n') {
             if line.len() < 3 {
@@ -38,24 +36,39 @@ impl ChallengeParser for Solution {
                     knots[i + 1] = drag_knot(knots[i], knots[i + 1]);
                 }
 
-                one.insert(knots[1]);
-                nine.insert(knots[9]);
+                let i = index(knots[1]);
+                if i >= one.len() * 64 {
+                    one.resize((i / 64) + 1, 0);
+                }
+                one[i / 64] |= 1 << (i % 64);
+
+                let i = index(knots[9]);
+                if i >= nine.len() * 64 {
+                    nine.resize((i / 64) + 1, 0);
+                }
+                nine[i / 64] |= 1 << (i % 64);
             }
         }
 
-        Ok(("", Self(one.len(), nine.len())))
+        Ok((
+            "",
+            Self(
+                one.iter().map(|b| b.count_ones()).sum::<u32>(),
+                nine.iter().map(|b| b.count_ones()).sum::<u32>(),
+            ),
+        ))
     }
 }
 
 impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
-    type Output1 = usize;
+    type Output1 = u32;
     fn part_one(self) -> Self::Output1 {
         self.0
     }
 
-    type Output2 = usize;
+    type Output2 = u32;
     fn part_two(self) -> Self::Output2 {
         self.1
     }
@@ -70,6 +83,22 @@ fn drag_knot(head: (i16, i16), tail: (i16, i16)) -> (i16, i16) {
     };
 
     (tail.0 + dx, tail.1 + dy)
+}
+
+fn index((x, y): (i16, i16)) -> usize {
+    let xa = x.unsigned_abs() as usize;
+    let ya = y.unsigned_abs() as usize;
+    let n = xa + ya;
+    if n == 0 {
+        return 0;
+    }
+    let m = 2 * n * (n - 1) + 1;
+
+    let a = (x + y < n as i16) as usize;
+    let a = a + (x < 0 || y == -(n as i16)) as usize;
+    let a = a + (x < 0 && y > 0) as usize;
+
+    m + n * a + xa
 }
 
 #[cfg(test)]
