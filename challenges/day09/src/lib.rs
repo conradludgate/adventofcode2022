@@ -4,11 +4,16 @@ use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(Vec<(i16, i16, u16)>);
+pub struct Solution(usize, usize);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        let mut output = Vec::with_capacity(input.len() / 5);
+        let mut nine = HashSet::with_capacity_and_hasher(input.len(), fxhash::FxBuildHasher::default());
+        let mut one = HashSet::with_capacity_and_hasher(input.len(), fxhash::FxBuildHasher::default());
+        let mut knots = [(0, 0); 10];
+        one.insert((0, 0));
+        nine.insert((0, 0));
+
         for line in input.as_bytes().split(|b| *b == b'\n') {
             if line.len() < 3 {
                 continue;
@@ -18,16 +23,27 @@ impl ChallengeParser for Solution {
                 b'D' => (0, -1),
                 b'L' => (-1, 0),
                 b'R' => (1, 0),
-                _ => panic!("{line:?}"),
+                _ => continue,
             };
-            let distance = match line {
-                [_, _, a] => *a - b'0',
-                [_, _, a, b] => 10 * (*a - b'0') + (*b - b'0'),
-                _ => panic!("{line:?}"),
-            } as u16;
-            output.push((x, y, distance));
+            let mut distance = line[2] - b'0';
+            if line.len() == 4 {
+                distance = 10 * distance + (line[3] - b'0');
+            }
+
+            for _ in 0..distance {
+                knots[0].0 += x;
+                knots[0].1 += y;
+
+                for i in 0..9 {
+                    knots[i + 1] = drag_knot(knots[i], knots[i + 1]);
+                }
+
+                one.insert(knots[1]);
+                nine.insert(knots[9]);
+            }
         }
-        Ok(("", Self(output)))
+
+        Ok(("", Self(one.len(), nine.len())))
     }
 }
 
@@ -36,36 +52,12 @@ impl Challenge for Solution {
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
-        self.solve::<2>()
+        self.0
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        self.solve::<10>()
-    }
-}
-
-impl Solution {
-    fn solve<const N: usize>(self) -> usize {
-        let mut data = HashSet::with_capacity_and_hasher(self.0.len(), fxhash::FxBuildHasher::default());
-
-        let mut knots = [(0, 0); N];
-        data.insert(0);
-
-        for (x, y, dist) in self.0 {
-            for _ in 0..dist {
-                knots[0].0 += x;
-                knots[0].1 += y;
-
-                for i in 0..N - 1 {
-                    knots[i + 1] = drag_knot(knots[i], knots[i + 1]);
-                }
-
-                data.insert(((knots[N - 1].1 as u32) << 16) | knots[N - 1].0 as u32);
-            }
-        }
-
-        data.len()
+        self.1
     }
 }
 
