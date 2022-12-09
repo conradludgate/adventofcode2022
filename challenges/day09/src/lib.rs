@@ -4,7 +4,7 @@ use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(Vec<(i32, i32, u32)>);
+pub struct Solution(Vec<(i16, i16, u16)>);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
@@ -24,7 +24,7 @@ impl ChallengeParser for Solution {
                 [_, _, a] => *a - b'0',
                 [_, _, a, b] => 10 * (*a - b'0') + (*b - b'0'),
                 _ => panic!("{line:?}"),
-            } as u32;
+            } as u16;
             output.push((x, y, distance));
         }
         Ok(("", Self(output)))
@@ -36,42 +36,32 @@ impl Challenge for Solution {
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
-        let mut data = HashSet::with_capacity(self.0.len());
-
-        let mut head = (0, 0);
-        let mut tail = (0, 0);
-        data.insert(tail);
-
-        for (x, y, dist) in self.0 {
-            for _ in 0..dist {
-                head.0 += x;
-                head.1 += y;
-
-                tail = drag_knot(head, tail);
-
-                data.insert(tail);
-            }
-        }
-
-        data.len()
+        self.solve::<2>()
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        let mut data = HashSet::with_capacity(self.0.len());
+        self.solve::<10>()
+    }
+}
 
-        let mut knots = [(0, 0); 10];
-        data.insert(knots[9]);
+impl Solution {
+    fn solve<const N: usize>(self) -> usize {
+        let mut data = HashSet::with_capacity_and_hasher(self.0.len(), fxhash::FxBuildHasher::default());
+
+        let mut knots = [(0, 0); N];
+        data.insert(0);
 
         for (x, y, dist) in self.0 {
             for _ in 0..dist {
                 knots[0].0 += x;
                 knots[0].1 += y;
 
-                for i in 0..9 {
+                for i in 0..N - 1 {
                     knots[i + 1] = drag_knot(knots[i], knots[i + 1]);
                 }
-                data.insert(knots[9]);
+
+                data.insert(((knots[N - 1].1 as u32) << 16) | knots[N - 1].0 as u32);
             }
         }
 
@@ -79,31 +69,15 @@ impl Challenge for Solution {
     }
 }
 
-fn drag_knot(head: (i32, i32), tail: (i32, i32)) -> (i32, i32) {
-    match (head.0 - tail.0, head.1 - tail.1) {
-        // true diagonals
-        (2, 2) => (tail.0 + 1, tail.1 + 1),
-        (2, -2) => (tail.0 + 1, tail.1 - 1),
-        (-2, 2) => (tail.0 - 1, tail.1 + 1),
-        (-2, -2) => (tail.0 - 1, tail.1 - 1),
-        // diagonals
-        (2, 1) => (tail.0 + 1, tail.1 + 1),
-        (2, -1) => (tail.0 + 1, tail.1 - 1),
-        (1, 2) => (tail.0 + 1, tail.1 + 1),
-        (1, -2) => (tail.0 + 1, tail.1 - 1),
-        (-2, 1) => (tail.0 - 1, tail.1 + 1),
-        (-2, -1) => (tail.0 - 1, tail.1 - 1),
-        (-1, 2) => (tail.0 - 1, tail.1 + 1),
-        (-1, -2) => (tail.0 - 1, tail.1 - 1),
-        // vertical
-        (0, -2) => (tail.0, tail.1 - 1),
-        (0, 2) => (tail.0, tail.1 + 1),
-        // horizontal
-        (-2, 0) => (tail.0 - 1, tail.1),
-        (2, 0) => (tail.0 + 1, tail.1),
-        // any others, don't move
-        _ => tail,
-    }
+fn drag_knot(head: (i16, i16), tail: (i16, i16)) -> (i16, i16) {
+    let dx = head.0 - tail.0;
+    let dy = head.1 - tail.1;
+    let (dx, dy) = match (dx.abs(), dy.abs()) {
+        (2, _) | (_, 2) => (dx.signum(), dy.signum()),
+        _ => (0, 0),
+    };
+
+    (tail.0 + dx, tail.1 + dy)
 }
 
 #[cfg(test)]

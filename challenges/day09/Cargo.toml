@@ -9,6 +9,7 @@ edition = "2021"
 nom = "7.1"
 parsers = { path = "../../parsers" }
 aoc = { path = "../../aoc" }
+fxhash = "0.2"
 
 [dev-dependencies]
 criterion = "0.4"
