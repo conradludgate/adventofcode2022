@@ -6,11 +6,9 @@ pub struct Solution(u32, u32);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        let mut nine: Vec<u64> = Vec::with_capacity(input.len().pow(2));
-        let mut one: Vec<u64> = Vec::with_capacity(input.len().pow(2));
+        let mut t1: Vec<u64> = Vec::with_capacity(8192);
+        let mut t9: Vec<u64> = Vec::with_capacity(8192);
         let mut knots = [(0, 0); 10];
-        one.push(1);
-        nine.push(1);
 
         for line in input.as_bytes().split(|b| *b == b'\n') {
             if line.len() < 3 {
@@ -36,25 +34,19 @@ impl ChallengeParser for Solution {
                     knots[i + 1] = drag_knot(knots[i], knots[i + 1]);
                 }
 
-                let i = index(knots[1]);
-                if i >= one.len() * 64 {
-                    one.resize((i / 64) + 1, 0);
-                }
-                one[i / 64] |= 1 << (i % 64);
+                let i1 = index(knots[1]);
+                let i9 = index(knots[9]);
 
-                let i = index(knots[9]);
-                if i >= nine.len() * 64 {
-                    nine.resize((i / 64) + 1, 0);
-                }
-                nine[i / 64] |= 1 << (i % 64);
+                set_bit(&mut t1, i1);
+                set_bit(&mut t9, i9);
             }
         }
 
         Ok((
             "",
             Self(
-                one.iter().map(|b| b.count_ones()).sum::<u32>(),
-                nine.iter().map(|b| b.count_ones()).sum::<u32>(),
+                t1.iter().map(|b| b.count_ones()).sum::<u32>(),
+                t9.iter().map(|b| b.count_ones()).sum::<u32>(),
             ),
         ))
     }
@@ -85,20 +77,40 @@ fn drag_knot(head: (i16, i16), tail: (i16, i16)) -> (i16, i16) {
     (tail.0 + dx, tail.1 + dy)
 }
 
+/// determines a 1d index from the 2d coordinate. points closer to 0,0 are given smaller indices
 fn index((x, y): (i16, i16)) -> usize {
-    let xa = x.unsigned_abs() as usize;
-    let ya = y.unsigned_abs() as usize;
-    let n = xa + ya;
-    if n == 0 {
-        return 0;
+    const XOR: [(i16, i16); 4] = [(0, 0), (-1, 0), (0, -1), (-1, -1)];
+    let quad = quad(x, y);
+    let (xorx, xory) = unsafe { *XOR.get_unchecked(quad) };
+    let x = (x ^ xorx) as usize;
+    let y = (y ^ xory) as usize;
+    quad + cantor(x, y) * 4
+}
+
+/// determines the quadrant a coordinate pair is in. Not in correct order: (0, 2, 3, 1 clockwise from top-right)
+fn quad(x: i16, y: i16) -> usize {
+    // const QUAD_LUT: [u8; 4] = [0, 1, 3, 2];
+    let x = x as u16;
+    let y = y as u16;
+    // unsafe { *QUAD_LUT.get_unchecked(((x >> 15) | ((y >> 14) & 0x2)) as usize)}
+    ((x >> 15) | ((y >> 14) & 0x2)) as usize
+}
+
+/// determines the index in the cantor positioning scheme
+fn cantor(x: usize, y: usize) -> usize {
+    let sum = x + y;
+    let tri = sum * (sum + 1) / 2;
+    tri + y
+}
+
+fn set_bit(v: &mut Vec<u64>, i: usize) {
+    let x = i / 64;
+    let y = i % 64;
+
+    if x >= v.len() {
+        v.resize(1 + x, 0);
     }
-    let m = 2 * n * (n - 1) + 1;
-
-    let a = (x + y < n as i16) as usize;
-    let a = a + (x < 0 || y == -(n as i16)) as usize;
-    let a = a + (x < 0 && y > 0) as usize;
-
-    m + n * a + xa
+    unsafe { *v.get_unchecked_mut(x) |= 1 << y }
 }
 
 #[cfg(test)]
