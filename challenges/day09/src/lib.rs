@@ -47,25 +47,8 @@ impl Challenge for Solution {
                 head.0 += x;
                 head.1 += y;
 
-                tail = match (head.0 - tail.0, head.1 - tail.1) {
-                    // diagonals
-                    (-2, -1) => (tail.0 - 1, tail.1 - 1),
-                    (2, -1) => (tail.0 + 1, tail.1 - 1),
-                    (-1, -2) => (tail.0 - 1, tail.1 - 1),
-                    (-1, 2) => (tail.0 - 1, tail.1 + 1),
-                    (-2, 1) => (tail.0 - 1, tail.1 + 1),
-                    (2, 1) => (tail.0 + 1, tail.1 + 1),
-                    (1, -2) => (tail.0 + 1, tail.1 - 1),
-                    (1, 2) => (tail.0 + 1, tail.1 + 1),
-                    // vertical
-                    (0, -2) => (tail.0, tail.1 - 1),
-                    (0, 2) => (tail.0, tail.1 + 1),
-                    // horizontal
-                    (-2, 0) => (tail.0 - 1, tail.1),
-                    (2, 0) => (tail.0 + 1, tail.1),
-                    // any others, don't move
-                    _ => tail,
-                };
+                tail = drag_knot(head, tail);
+
                 data.insert(tail);
             }
         }
@@ -75,7 +58,51 @@ impl Challenge for Solution {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        0
+        let mut data = HashSet::with_capacity(self.0.len());
+
+        let mut knots = [(0, 0); 10];
+        data.insert(knots[9]);
+
+        for (x, y, dist) in self.0 {
+            for _ in 0..dist {
+                knots[0].0 += x;
+                knots[0].1 += y;
+
+                for i in 0..9 {
+                    knots[i + 1] = drag_knot(knots[i], knots[i + 1]);
+                }
+                data.insert(knots[9]);
+            }
+        }
+
+        data.len()
+    }
+}
+
+fn drag_knot(head: (i32, i32), tail: (i32, i32)) -> (i32, i32) {
+    match (head.0 - tail.0, head.1 - tail.1) {
+        // true diagonals
+        (2, 2) => (tail.0 + 1, tail.1 + 1),
+        (2, -2) => (tail.0 + 1, tail.1 - 1),
+        (-2, 2) => (tail.0 - 1, tail.1 + 1),
+        (-2, -2) => (tail.0 - 1, tail.1 - 1),
+        // diagonals
+        (2, 1) => (tail.0 + 1, tail.1 + 1),
+        (2, -1) => (tail.0 + 1, tail.1 - 1),
+        (1, 2) => (tail.0 + 1, tail.1 + 1),
+        (1, -2) => (tail.0 + 1, tail.1 - 1),
+        (-2, 1) => (tail.0 - 1, tail.1 + 1),
+        (-2, -1) => (tail.0 - 1, tail.1 - 1),
+        (-1, 2) => (tail.0 - 1, tail.1 + 1),
+        (-1, -2) => (tail.0 - 1, tail.1 - 1),
+        // vertical
+        (0, -2) => (tail.0, tail.1 - 1),
+        (0, 2) => (tail.0, tail.1 + 1),
+        // horizontal
+        (-2, 0) => (tail.0 - 1, tail.1),
+        (2, 0) => (tail.0 + 1, tail.1),
+        // any others, don't move
+        _ => tail,
     }
 }
 
@@ -106,9 +133,18 @@ R 2
         assert_eq!(output.part_one(), 13);
     }
 
+    const INPUT2: &str = "R 5
+U 8
+L 8
+D 3
+R 17
+D 10
+L 25
+U 20
+";
     #[test]
     fn part_two() {
-        let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        let output = Solution::parse(INPUT2).unwrap().1;
+        assert_eq!(output.part_two(), 36);
     }
 }
