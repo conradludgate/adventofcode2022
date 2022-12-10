@@ -1,32 +1,54 @@
 use aoc::{Challenge, Parser as ChallengeParser};
-use nom::{bytes::complete::tag, IResult, Parser};
+use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(i32);
+pub struct Solution(i32, Vec<u8>);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut x = 1;
-        let mut cycle = 1;
+        let mut cycle: usize = 1;
         let mut total = 0;
         for line in input.lines() {
             let (cycles, newx) = match &line[..4] {
-                "addx" => {
-                    (2, line[5..].parse::<i32>().unwrap() + x)
-                },
-                _ => (1, x)
+                "addx" => (2, line[5..].parse::<i32>().unwrap() + x),
+                _ => (1, x),
             };
 
             // ew
             if (cycle + cycles + 19) / 40 > (cycle + 19) / 40 {
                 let c = ((cycle + cycles + 19) / 40) * 40 - 20;
-                total += x * c;
+                total += x * c as i32;
             }
 
             x = newx;
             cycle += cycles;
         }
-        Ok(("", Self(total)))
+
+        let mut x = 1;
+        let mut cycle = 1;
+        let mut output = b".".repeat(40 * 6);
+        for line in input.lines() {
+            let (cycles, newx) = match &line[..4] {
+                "addx" => (2, line[5..].parse::<i32>().unwrap() + x),
+                _ => (1, x),
+            };
+
+            for _ in 0..cycles {
+                let sprite = x - 1..=x + 1;
+                let pos = (cycle - 1) % 40;
+                if sprite.contains(&(pos as i32)) {
+                    output[(cycle - 1) % 240] = b'#';
+                } else {
+                    // output[(cycle - 1) % 240] = b'.';
+                }
+
+                cycle += 1;
+            }
+
+            x = newx;
+        }
+        Ok(("", Self(total, output)))
     }
 }
 
@@ -38,8 +60,11 @@ impl Challenge for Solution {
         self.0
     }
 
-    type Output2 = usize;
+    type Output2 = u8;
     fn part_two(self) -> Self::Output2 {
+        for line in self.1.chunks(40) {
+            println!("{}", std::str::from_utf8(line).unwrap())
+        }
         0
     }
 }
