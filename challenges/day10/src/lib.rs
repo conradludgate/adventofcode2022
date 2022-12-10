@@ -1,13 +1,15 @@
 use aoc::{Challenge, Parser as ChallengeParser};
+use arrayvec::ArrayString;
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(i32, Vec<u8>);
+pub struct Solution(i32, ArrayString<8>);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut x = 1;
         let mut cycle: usize = 1;
+        let mut output = [b'.'; 40 * 6]; // interpreted as 5*8*6 => 30*8
         let mut total = 0;
         for line in input.lines() {
             let (cycles, newx) = match &line[..4] {
@@ -15,32 +17,17 @@ impl ChallengeParser for Solution {
                 _ => (1, x),
             };
 
-            // ew
-            if (cycle + cycles + 19) / 40 > (cycle + 19) / 40 {
-                let c = ((cycle + cycles + 19) / 40) * 40 - 20;
-                total += x * c as i32;
-            }
-
-            x = newx;
-            cycle += cycles;
-        }
-
-        let mut x = 1;
-        let mut cycle = 1;
-        let mut output = b".".repeat(40 * 6);
-        for line in input.lines() {
-            let (cycles, newx) = match &line[..4] {
-                "addx" => (2, line[5..].parse::<i32>().unwrap() + x),
-                _ => (1, x),
-            };
-
             for _ in 0..cycles {
+                // if center of screen, track signal strength
+                if (cycle + 20) % 40 == 0 {
+                    total += x * cycle as i32;
+                }
+
+                let row = (cycle - 1) % 40;
+                let col = (cycle - 1) / 40;
                 let sprite = x - 1..=x + 1;
-                let pos = (cycle - 1) % 40;
-                if sprite.contains(&(pos as i32)) {
-                    output[(cycle - 1) % 240] = b'#';
-                } else {
-                    // output[(cycle - 1) % 240] = b'.';
+                if sprite.contains(&(row as i32)) {
+                    output[col + row * 6] = b'#';
                 }
 
                 cycle += 1;
@@ -48,7 +35,43 @@ impl ChallengeParser for Solution {
 
             x = newx;
         }
-        Ok(("", Self(total, output)))
+
+        let mut s = ArrayString::<8>::new();
+
+        for line in output.chunks(30) {
+            let c = match line {
+                b".######..#..#..#...#####......" => 'A',
+                b"#######.#..##.#..#.#.##......." => 'B',
+                b".####.#....##....#.#..#......." => 'C',
+                b"#######....##....#.####......." => 'D',
+                b"#######.#..##.#..##....#......" => 'E',
+                b"#######.#...#.#...#..........." => 'F',
+                b".####.#....##..#.#.#.###......" => 'G',
+                b"######..#.....#...######......" => 'H',
+                b"#....########....#............" => 'I',
+                b"....#......##....######......." => 'J',
+                b"######..#....#.##.#....#......" => 'K',
+                b"######.....#.....#.....#......" => 'L',
+                b"######.##....##...######......" => 'M',
+                b"######.##......##.######......" => 'N',
+                b".####.#....##....#.####......." => 'O',
+                b"#######..#..#..#...##........." => 'P',
+                b".####.#...###....#.####......." => 'Q',
+                b"#######..#..#..##..##..#......" => 'R',
+                b".#..#.#.#..##..#.#.#..#......." => 'S',
+                b"#.....#######................." => 'T',
+                b"#####......#.....######......." => 'U',
+                b"####......##....######........" => 'V',
+                b"######...##....##.######......" => 'W',
+                b"##..##..##....##..##..##......" => 'X',
+                b"###......######..............." => 'Y',
+                b"#...###..#.##.#..###...#......" => 'Z',
+                _ => '.',
+            };
+            s.push(c);
+        }
+
+        Ok(("", Self(total, s)))
     }
 }
 
@@ -60,12 +83,9 @@ impl Challenge for Solution {
         self.0
     }
 
-    type Output2 = u8;
+    type Output2 = ArrayString<8>;
     fn part_two(self) -> Self::Output2 {
-        for line in self.1.chunks(40) {
-            println!("{}", std::str::from_utf8(line).unwrap())
-        }
-        0
+        self.1
     }
 }
 
@@ -231,11 +251,5 @@ noop";
     fn part_one() {
         let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_one(), 13140);
-    }
-
-    #[test]
-    fn part_two() {
-        let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
     }
 }
