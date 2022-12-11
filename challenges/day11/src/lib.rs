@@ -1,14 +1,15 @@
+#![feature(get_many_mut)]
+
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::ArrayVec;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_until},
-    character::streaming::line_ending,
     IResult, Parser,
 };
 use parsers::{number, ParserExt};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Operation {
     Square,
     Mul(u32),
@@ -22,6 +23,13 @@ impl Operation {
             number.preceded_by(tag("new = old + ")).map(Self::Add),
         ))
         .parse(input)
+    }
+    fn apply(self, x: u32) -> u32 {
+        match self {
+            Operation::Square => x * x,
+            Operation::Mul(y) => x * y,
+            Operation::Add(y) => x + y,
+        }
     }
 }
 
@@ -39,8 +47,8 @@ impl Monkey {
         let (input, _) = take_until("items: ").parse(input)?;
         let (input, _) = tag("items: ").parse(input)?;
         let (input, items) = number.separated_list1(tag(", ")).parse(input)?;
-        let (input, op) = Operation::parse.preceded_by(tag("\nOperation: ")).parse(input)?;
-        let (input, test) = number.preceded_by(tag("\nTest: divisible by ")).parse(input)?;
+        let (input, op) = Operation::parse.preceded_by(tag("\n  Operation: ")).parse(input)?;
+        let (input, test) = number.preceded_by(tag("\n  Test: divisible by ")).parse(input)?;
         let (input, throw1) = number
             .preceded_by(tag("\n    If true: throw to monkey "))
             .parse(input)?;
@@ -73,8 +81,25 @@ impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
-    fn part_one(self) -> Self::Output1 {
-        0
+    fn part_one(mut self) -> Self::Output1 {
+        let mut inspect_count = [0; 8];
+
+        for _ in 0..20 {
+            for i in 0..self.0.len() {
+                let (j, k) = self.0[i].throws;
+                let [monkey, j, k] = self.0.get_many_mut([i, j, k]).unwrap();
+                for item in monkey.items.drain(..) {
+                    inspect_count[i] += 1;
+                    let worry = monkey.op.apply(item) / 3;
+                    if worry % monkey.test == 0 { &mut *j } else { &mut *k }
+                        .items
+                        .push(worry)
+                }
+            }
+        }
+
+        inspect_count.select_nth_unstable(6);
+        inspect_count[6] * inspect_count[7]
     }
 
     type Output2 = usize;
@@ -89,30 +114,30 @@ mod tests {
     use aoc::{Challenge, Parser};
 
     const INPUT: &str = "Monkey 0:
-Starting items: 79, 98
-Operation: new = old * 19
-Test: divisible by 23
+  Starting items: 79, 98
+  Operation: new = old * 19
+  Test: divisible by 23
     If true: throw to monkey 2
     If false: throw to monkey 3
 
 Monkey 1:
-Starting items: 54, 65, 75, 74
-Operation: new = old + 6
-Test: divisible by 19
+  Starting items: 54, 65, 75, 74
+  Operation: new = old + 6
+  Test: divisible by 19
     If true: throw to monkey 2
     If false: throw to monkey 0
 
 Monkey 2:
-Starting items: 79, 60, 97
-Operation: new = old * old
-Test: divisible by 13
+  Starting items: 79, 60, 97
+  Operation: new = old * old
+  Test: divisible by 13
     If true: throw to monkey 1
     If false: throw to monkey 3
 
 Monkey 3:
-Starting items: 74
-Operation: new = old + 3
-Test: divisible by 17
+  Starting items: 74
+  Operation: new = old + 3
+  Test: divisible by 17
     If true: throw to monkey 0
     If false: throw to monkey 1
 ";
@@ -126,7 +151,7 @@ Test: divisible by 17
     #[test]
     fn part_one() {
         let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_one(), 0);
+        assert_eq!(output.part_one(), 10605);
     }
 
     #[test]
