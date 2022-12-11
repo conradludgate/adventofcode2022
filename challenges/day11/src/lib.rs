@@ -24,11 +24,11 @@ impl Operation {
         ))
         .parse(input)
     }
-    fn apply(self, x: u32) -> u32 {
+    fn apply(self, x: u32, m: u32) -> u32 {
         match self {
-            Operation::Square => x * x,
-            Operation::Mul(y) => x * y,
-            Operation::Add(y) => x + y,
+            Operation::Square => ((x as usize) * (x as usize) % (m as usize)) as u32,
+            Operation::Mul(y) => (x * y) % m,
+            Operation::Add(y) => (x + y) % m,
         }
     }
 }
@@ -83,6 +83,7 @@ impl Challenge for Solution {
     type Output1 = usize;
     fn part_one(mut self) -> Self::Output1 {
         let mut inspect_count = [0; 8];
+        let lcm = self.0.iter().map(|m| m.test).product::<u32>();
 
         for _ in 0..20 {
             for i in 0..self.0.len() {
@@ -90,7 +91,7 @@ impl Challenge for Solution {
                 let [monkey, j, k] = self.0.get_many_mut([i, j, k]).unwrap();
                 for item in monkey.items.drain(..) {
                     inspect_count[i] += 1;
-                    let worry = monkey.op.apply(item) / 3;
+                    let worry = monkey.op.apply(item, lcm) / 3;
                     if worry % monkey.test == 0 { &mut *j } else { &mut *k }
                         .items
                         .push(worry)
@@ -103,8 +104,26 @@ impl Challenge for Solution {
     }
 
     type Output2 = usize;
-    fn part_two(self) -> Self::Output2 {
-        0
+    fn part_two(mut self) -> Self::Output2 {
+        let mut inspect_count = [0; 8];
+        let lcm = self.0.iter().map(|m| m.test).product::<u32>();
+
+        for _ in 0..10000 {
+            for i in 0..self.0.len() {
+                let (j, k) = self.0[i].throws;
+                let [monkey, j, k] = self.0.get_many_mut([i, j, k]).unwrap();
+                for item in monkey.items.drain(..) {
+                    inspect_count[i] += 1;
+                    let worry = monkey.op.apply(item, lcm);
+                    if worry % monkey.test == 0 { &mut *j } else { &mut *k }
+                        .items
+                        .push(worry)
+                }
+            }
+        }
+
+        inspect_count.select_nth_unstable(6);
+        inspect_count[6] * inspect_count[7]
     }
 }
 
@@ -157,6 +176,6 @@ Monkey 3:
     #[test]
     fn part_two() {
         let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        assert_eq!(output.part_two(), 2713310158);
     }
 }
