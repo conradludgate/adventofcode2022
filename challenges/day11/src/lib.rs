@@ -8,12 +8,13 @@ use nom::{
     IResult, Parser,
 };
 use parsers::{number, ParserExt};
+use strength_reduce::StrengthReducedU64;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum Operation {
     Square,
-    Mul(u32),
-    Add(u32),
+    Mul(u64),
+    Add(u64),
 }
 impl Operation {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
@@ -24,20 +25,20 @@ impl Operation {
         ))
         .parse(input)
     }
-    fn apply(self, x: u32, m: u32) -> u32 {
+    fn apply(self, x: u64) -> u64 {
         match self {
-            Operation::Square => ((x as usize) * (x as usize) % (m as usize)) as u32,
-            Operation::Mul(y) => (x * y) % m,
-            Operation::Add(y) => (x + y) % m,
+            Operation::Square => x * x,
+            Operation::Mul(y) => x * y,
+            Operation::Add(y) => x + y,
         }
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 struct Monkey {
-    items: ArrayVec<u32, 64>,
+    items: ArrayVec<u64, 32>,
     op: Operation,
-    test: u32,
+    test: StrengthReducedU64,
     throws: (usize, usize),
 }
 
@@ -61,14 +62,14 @@ impl Monkey {
             Self {
                 items,
                 op,
-                test,
+                test: StrengthReducedU64::new(test),
                 throws: (throw1, throw2),
             },
         ))
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Solution(ArrayVec<Monkey, 8>);
 
 impl ChallengeParser for Solution {
@@ -77,21 +78,20 @@ impl ChallengeParser for Solution {
     }
 }
 
-impl Challenge for Solution {
-    const NAME: &'static str = env!("CARGO_PKG_NAME");
-
-    type Output1 = usize;
-    fn part_one(mut self) -> Self::Output1 {
+impl Solution {
+    #[allow(clippy::needless_range_loop)]
+    fn solve(mut self, relief: u64, iterations: usize) -> usize {
         let mut inspect_count = [0; 8];
-        let lcm = self.0.iter().map(|m| m.test).product::<u32>();
+        let relief = StrengthReducedU64::new(relief);
+        let lcm = StrengthReducedU64::new(self.0.iter().map(|m| m.test.get()).product());
 
-        for _ in 0..20 {
+        for _ in 0..iterations {
             for i in 0..self.0.len() {
                 let (j, k) = self.0[i].throws;
                 let [monkey, j, k] = self.0.get_many_mut([i, j, k]).unwrap();
                 for item in monkey.items.drain(..) {
                     inspect_count[i] += 1;
-                    let worry = monkey.op.apply(item, lcm) / 3;
+                    let worry = (monkey.op.apply(item) % lcm) / relief;
                     if worry % monkey.test == 0 { &mut *j } else { &mut *k }
                         .items
                         .push(worry)
@@ -102,28 +102,19 @@ impl Challenge for Solution {
         inspect_count.select_nth_unstable(6);
         inspect_count[6] * inspect_count[7]
     }
+}
+
+impl Challenge for Solution {
+    const NAME: &'static str = env!("CARGO_PKG_NAME");
+
+    type Output1 = usize;
+    fn part_one(self) -> Self::Output1 {
+        self.solve(3, 20)
+    }
 
     type Output2 = usize;
-    fn part_two(mut self) -> Self::Output2 {
-        let mut inspect_count = [0; 8];
-        let lcm = self.0.iter().map(|m| m.test).product::<u32>();
-
-        for _ in 0..10000 {
-            for i in 0..self.0.len() {
-                let (j, k) = self.0[i].throws;
-                let [monkey, j, k] = self.0.get_many_mut([i, j, k]).unwrap();
-                for item in monkey.items.drain(..) {
-                    inspect_count[i] += 1;
-                    let worry = monkey.op.apply(item, lcm);
-                    if worry % monkey.test == 0 { &mut *j } else { &mut *k }
-                        .items
-                        .push(worry)
-                }
-            }
-        }
-
-        inspect_count.select_nth_unstable(6);
-        inspect_count[6] * inspect_count[7]
+    fn part_two(self) -> Self::Output2 {
+        self.solve(1, 10000)
     }
 }
 
