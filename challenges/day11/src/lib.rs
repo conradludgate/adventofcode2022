@@ -39,7 +39,8 @@ struct Monkey {
     items: ArrayVec<u64, 32>,
     op: Operation,
     test: StrengthReducedU64,
-    throws: (usize, usize),
+    throws: [u8; 2],
+    inspect: u32,
 }
 
 impl Monkey {
@@ -63,7 +64,8 @@ impl Monkey {
                 items,
                 op,
                 test: StrengthReducedU64::new(test),
-                throws: (throw1, throw2),
+                throws: [throw1, throw2],
+                inspect: 0,
             },
         ))
     }
@@ -81,26 +83,55 @@ impl ChallengeParser for Solution {
 impl Solution {
     #[allow(clippy::needless_range_loop)]
     fn solve(mut self, relief: u64, iterations: usize) -> usize {
-        let mut inspect_count = [0; 8];
         let relief = StrengthReducedU64::new(relief);
         let lcm = StrengthReducedU64::new(self.0.iter().map(|m| m.test.get()).product());
 
-        for _ in 0..iterations {
-            for i in 0..self.0.len() {
-                let (j, k) = self.0[i].throws;
-                let [monkey, j, k] = self.0.get_many_mut([i, j, k]).unwrap();
+        for (i, m) in self.0.iter().enumerate() {
+            assert!((m.throws[0] as usize) < self.0.len());
+            assert!((m.throws[1] as usize) < self.0.len());
+            assert_ne!((m.throws[0] as usize), i);
+            assert_ne!((m.throws[1] as usize), i);
+        }
+
+        // SAFETY: checked above
+        unsafe { self.rounds(iterations, relief, lcm) }
+
+        let mut max1 = 0;
+        let mut max2 = 0;
+        for monkey in self.0 {
+            let min1 = u32::min(max1, monkey.inspect);
+            max1 = u32::max(max1, monkey.inspect);
+            max2 = u32::max(max2, min1);
+        }
+
+        (max1 as usize) * (max2 as usize)
+    }
+
+    /// # Safety
+    /// all monkey throw indices should be within the bounds of the monkey array
+    unsafe fn rounds(&mut self, rounds: usize, relief: StrengthReducedU64, lcm: StrengthReducedU64) {
+        let len = self.0.len();
+        let ptr = self.0.as_mut_ptr();
+        for _ in 0..rounds {
+            for i in 0..len {
+                let monkey = &mut *ptr.add(i);
+                let [j, k] = monkey.throws;
+
+                let j = &mut (*ptr.add(j as usize)).items;
+                let k = &mut (*ptr.add(k as usize)).items;
+
+                // let [monkey, j, k] = self.0.get_many_unchecked_mut([i, k as usize, j as usize]);
                 for item in monkey.items.drain(..) {
-                    inspect_count[i] += 1;
+                    monkey.inspect += 1;
                     let worry = (monkey.op.apply(item) % lcm) / relief;
-                    if worry % monkey.test == 0 { &mut *j } else { &mut *k }
-                        .items
-                        .push(worry)
+
+                    let test = worry % monkey.test == 0;
+
+                    let throw_to = if test { &mut *j } else { &mut *k };
+                    let _ = throw_to.try_push(worry);
                 }
             }
         }
-
-        inspect_count.select_nth_unstable(6);
-        inspect_count[6] * inspect_count[7]
     }
 }
 
