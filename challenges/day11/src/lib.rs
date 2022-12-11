@@ -1,4 +1,6 @@
-#![feature(get_many_mut)]
+#![feature(portable_simd, slice_swap_unchecked, slice_split_at_unchecked)]
+
+use std::simd::Simd;
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::ArrayVec;
@@ -8,7 +10,6 @@ use nom::{
     IResult, Parser,
 };
 use parsers::{number, ParserExt};
-use strength_reduce::StrengthReducedU64;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum Operation {
@@ -25,21 +26,21 @@ impl Operation {
         ))
         .parse(input)
     }
-    fn apply(self, x: u64) -> u64 {
+    fn apply(self, x: Simd<u64, N>) -> Simd<u64, N> {
         match self {
             Operation::Square => x * x,
-            Operation::Mul(y) => x * y,
-            Operation::Add(y) => x + y,
+            Operation::Mul(y) => x * Simd::<u64, N>::splat(y),
+            Operation::Add(y) => x + Simd::<u64, N>::splat(y),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 struct Monkey {
-    items: ArrayVec<u64, 32>,
+    items: ArrayVec<u64, 8>,
     op: Operation,
-    test: StrengthReducedU64,
-    throws: [u8; 2],
+    test: Div,
+    throws: [usize; 2],
     inspect: u32,
 }
 
@@ -63,7 +64,7 @@ impl Monkey {
             Self {
                 items,
                 op,
-                test: StrengthReducedU64::new(test),
+                test: Div::new(test),
                 throws: [throw1, throw2],
                 inspect: 0,
             },
@@ -83,14 +84,14 @@ impl ChallengeParser for Solution {
 impl Solution {
     #[allow(clippy::needless_range_loop)]
     fn solve(mut self, relief: u64, iterations: usize) -> usize {
-        let relief = StrengthReducedU64::new(relief);
-        let lcm = StrengthReducedU64::new(self.0.iter().map(|m| m.test.get()).product());
+        let relief = Div::new(relief);
+        let lcm = Div::new(self.0.iter().map(|m| m.test.1).product());
 
         for (i, m) in self.0.iter().enumerate() {
-            assert!((m.throws[0] as usize) < self.0.len());
-            assert!((m.throws[1] as usize) < self.0.len());
-            assert_ne!((m.throws[0] as usize), i);
-            assert_ne!((m.throws[1] as usize), i);
+            assert!(m.throws[0] < self.0.len());
+            assert!(m.throws[1] < self.0.len());
+            assert_ne!(m.throws[0], i);
+            assert_ne!(m.throws[1], i);
         }
 
         // SAFETY: checked above
@@ -109,28 +110,159 @@ impl Solution {
 
     /// # Safety
     /// all monkey throw indices should be within the bounds of the monkey array
-    unsafe fn rounds(&mut self, rounds: usize, relief: StrengthReducedU64, lcm: StrengthReducedU64) {
-        let len = self.0.len();
-        let ptr = self.0.as_mut_ptr();
-        for _ in 0..rounds {
-            for i in 0..len {
-                let monkey = &mut *ptr.add(i);
+    #[inline(never)]
+    unsafe fn rounds(&mut self, rounds: usize, relief: Div, lcm: Div) {
+        // let inspect = [0u32; 8];
+        let mut items = [[Simd::<u64, N>::splat(0); M]; 8];
+        let mut lengths = [0usize; 8];
+
+        for (i, monkey) in self.0.iter().enumerate() {
+            let len = monkey.items.len();
+            *lengths.get_unchecked_mut(i) = len;
+            let chunk = items.get_unchecked_mut(i);
+            as_array(chunk)[..len].copy_from_slice(&monkey.items)
+        }
+
+        for _round in 0..rounds {
+            for (i, monkey) in self.0.iter_mut().enumerate() {
                 let [j, k] = monkey.throws;
 
-                let j = &mut (*ptr.add(j as usize)).items;
-                let k = &mut (*ptr.add(k as usize)).items;
+                let len = std::mem::take(lengths.get_unchecked_mut(i));
+                monkey.inspect += len as u32;
 
-                // let [monkey, j, k] = self.0.get_many_unchecked_mut([i, k as usize, j as usize]);
-                for item in monkey.items.drain(..) {
-                    monkey.inspect += 1;
-                    let worry = (monkey.op.apply(item) % lcm) / relief;
+                let mut item_chunks = (*items.get_unchecked(i)).map(|item_chunk| {
+                    let item_chunk = monkey.op.apply(item_chunk);
+                    // ensure the worries stay bounded
+                    let item_chunk = lcm.remn(item_chunk);
+                    // apply the worry relief
+                    relief.divn(item_chunk)
+                });
+                let mut test = item_chunks.map(|worry_chunk| monkey.test.remn(worry_chunk));
 
-                    let test = worry % monkey.test == 0;
+                // let worries = items[i];
+                // // apply the worry operation
+                // let worries = monkey.op.apply(worries);
+                // // ensure the worries stay bounded
+                // let worries = lcm.div_rem8(worries).1;
+                // // apply the worry relief
+                // let mut worries = relief.div_rem8(worries).0;
+                // let mut test = monkey.test.div_rem8(worries).1;
 
-                    let throw_to = if test { &mut *j } else { &mut *k };
-                    let _ = throw_to.try_push(worry);
-                }
+                // partition the worries
+                let (left, right) = {
+                    let item_chunks = as_array(&mut item_chunks);
+                    let test = as_array(&mut test);
+
+                    let (item_chunks, _) = unsafe { item_chunks.split_at_mut_unchecked(len) };
+
+                    let mut left = 0;
+                    let mut right = len;
+                    while right > left {
+                        if *test.get_unchecked(left) != 0 {
+                            right -= 1;
+                            unsafe {
+                                test.swap_unchecked(left, right);
+                                item_chunks.swap_unchecked(left, right);
+                            }
+                        } else {
+                            left += 1;
+                        }
+                    }
+
+                    unsafe { item_chunks.split_at_unchecked(left) }
+                };
+
+                let lenj = *lengths.get_unchecked(j);
+                let lenk = *lengths.get_unchecked(k);
+
+                let endj = lenj + left.len();
+                let endk = lenk + right.len();
+
+                as_array(items.get_unchecked_mut(j))[lenj..endj].copy_from_slice(left);
+                as_array(items.get_unchecked_mut(k))[lenk..endk].copy_from_slice(right);
+
+                *lengths.get_unchecked_mut(j) = endj;
+                *lengths.get_unchecked_mut(k) = endk;
             }
+            // for i in 0..self.0.len() {
+            //     println!("{} {i}: {:?}", round+1, &items[i].as_array()[..lengths[i]]);
+            // }
+            // if [1, 20, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000].contains(&(round+1)) {
+            //     println!("round {}", round+1);
+            //     for i in &self.0 {
+            //         println!("{}", i.inspect);
+            //     }
+            // }
+        }
+    }
+}
+
+fn as_array(x: &mut [Simd<u64, N>; M]) -> &mut [u64; CAP] {
+    debug_assert_eq!(
+        std::mem::size_of::<[Simd<u64, N>; M]>(),
+        std::mem::size_of::<[u64; CAP]>()
+    );
+    // x[0].as_mut_array()
+    unsafe { &mut *(x as *mut [Simd<u64, N>; M] as *mut [u64; CAP]) }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Div(u64, u64);
+
+impl Div {
+    fn new(n: u64) -> Self {
+        assert!(n > 0);
+
+        if n.is_power_of_two() {
+            Self(0, n)
+        } else {
+            Self(u64::MAX / n + 1, n)
+        }
+    }
+}
+
+const CAP: usize = 24;
+const N: usize = 1;
+const M: usize = CAP/N;
+
+impl Div {
+    // #[inline(never)]
+    // fn div_rem8(self, numerator: u64x8) -> (u64x8, u64x8) {
+    //     if self.0 == 0 {
+    //         (
+    //             numerator >> u64x8::splat(self.1.trailing_zeros() as u64),
+    //             numerator & u64x8::splat(self.1 - 1),
+    //         )
+    //     } else {
+    //         let hi = u64x8::splat(self.0 >> 32);
+    //         let lo = u64x8::splat(self.0 & 0xffffffff);
+    //         let shift = u64x8::splat(32);
+
+    //         let multiplied_hi = numerator * hi;
+    //         let multiplied_lo = (numerator * lo) >> shift;
+
+    //         let quotient = (multiplied_hi + multiplied_lo) >> shift;
+    //         let remainder = numerator - quotient * u64x8::splat(self.1);
+    //         (quotient, remainder)
+    //     }
+    // }
+
+    fn remn(self, numerator: Simd<u64, N>) -> Simd<u64, N> {
+        numerator - self.divn(numerator) * Simd::<u64, N>::splat(self.1)
+    }
+
+    fn divn(self, numerator: Simd<u64, N>) -> Simd<u64, N> {
+        if self.0 == 0 {
+            numerator >> Simd::<u64, N>::splat(self.1.trailing_zeros() as u64)
+        } else {
+            let shift = Simd::<u64, N>::splat(32);
+            let hi = Simd::<u64, N>::splat(self.0 >> 32);
+            let lo = Simd::<u64, N>::splat(self.0 & 0xffffffff);
+
+            let multiplied_hi = numerator * hi;
+            let multiplied_lo = (numerator * lo) >> shift;
+
+            (multiplied_hi + multiplied_lo) >> shift
         }
     }
 }
