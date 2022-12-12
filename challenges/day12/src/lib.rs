@@ -1,6 +1,6 @@
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
-use pathfinding::directed::astar;
+use pathfinding::directed::{astar, dijkstra};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Solution {
@@ -29,12 +29,15 @@ impl ChallengeParser for Solution {
     }
 }
 
-impl Solution {
-    fn shortest(&self, from: usize) -> Option<usize> {
-        let Self { map, width, end, .. } = self;
+impl Challenge for Solution {
+    const NAME: &'static str = env!("CARGO_PKG_NAME");
+
+    type Output1 = usize;
+    fn part_one(self) -> Self::Output1 {
+        let Self { map, width, end, start } = self;
         let stride = width + 1;
         astar::astar(
-            &from,
+            &start,
             |&p| {
                 [p + 1, p + stride, p.wrapping_sub(1), p.wrapping_sub(stride)]
                     .into_iter()
@@ -59,29 +62,41 @@ impl Solution {
                 let dist = end.abs_diff(*p);
                 dist / stride + dist % stride
             },
-            |p| *p == *end,
+            |p| *p == end,
         )
-        .map(|(_, d)| d)
-    }
-}
-
-impl Challenge for Solution {
-    const NAME: &'static str = env!("CARGO_PKG_NAME");
-
-    type Output1 = usize;
-    fn part_one(self) -> Self::Output1 {
-        self.shortest(self.start).unwrap()
+        .unwrap()
+        .1
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        self.map
-            .iter()
-            .enumerate()
-            .filter(|(_, &b)| b == b'a')
-            .filter_map(|(start, _)| self.shortest(start))
-            .min()
-            .unwrap()
+        let Self { map, width, end, .. } = self;
+        let stride = width + 1;
+        dijkstra::dijkstra(
+            &end,
+            |&p| {
+                [p + 1, p + stride, p.wrapping_sub(1), p.wrapping_sub(stride)]
+                    .into_iter()
+                    .filter(move |&q| {
+                        if q >= map.len() {
+                            return false;
+                        }
+                        let mut vp = map[p];
+                        let mut vq = map[q];
+                        if vp == b'E' {
+                            vp = b'z'
+                        }
+                        if vq == b'S' {
+                            vq = b'a'
+                        }
+                        vp != b'\n' && vp <= vq + 1
+                    })
+                    .map(|q| (q, 1))
+            },
+            |p| map[*p] == b'S' || map[*p] == b'a',
+        )
+        .unwrap()
+        .1
     }
 }
 
