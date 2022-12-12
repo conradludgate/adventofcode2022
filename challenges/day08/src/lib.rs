@@ -4,9 +4,9 @@ use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day08(u32, u32);
+pub struct Solution(u32, u32);
 
-impl ChallengeParser for Day08 {
+impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let input = input.as_bytes();
         let line = input.iter().position(|&b| b == b'\n').unwrap_or(input.len());
@@ -100,7 +100,7 @@ impl ChallengeParser for Day08 {
     }
 }
 
-impl Challenge for Day08 {
+impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = u32;
@@ -116,7 +116,7 @@ impl Challenge for Day08 {
 
 #[cfg(test)]
 mod tests {
-    use super::Day08;
+    use super::Solution;
     use aoc::{Challenge, Parser};
 
     const INPUT: &str = "30373
@@ -128,19 +128,19 @@ mod tests {
 
     #[test]
     fn parse() {
-        let output = Day08::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         println!("{output:?}");
     }
 
     #[test]
     fn part_one() {
-        let output = Day08::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_one(), 21);
     }
 
     #[test]
     fn part_two() {
-        let output = Day08::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_two(), 8);
     }
 }

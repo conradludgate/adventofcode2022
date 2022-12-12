@@ -1,6 +1,6 @@
-use day03::Day03;
+use day03::Solution;
 
 fn main() {
     let input = include_str!("../input.txt");
-    aoc::check::<Day03>(input);
+    aoc::check::<Solution>(input);
 }

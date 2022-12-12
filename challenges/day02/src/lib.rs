@@ -63,9 +63,9 @@ impl Rps {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day02(Vec<(Rps, Goal)>);
+pub struct Solution(Vec<(Rps, Goal)>);
 
-impl ChallengeParser for Day02 {
+impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         separated_pair(Rps::parse, tag(" "), Goal::parse)
             .separated_list1(line_ending)
@@ -74,7 +74,7 @@ impl ChallengeParser for Day02 {
     }
 }
 
-impl Challenge for Day02 {
+impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
@@ -96,7 +96,7 @@ impl Challenge for Day02 {
 
 #[cfg(test)]
 mod tests {
-    use super::Day02;
+    use super::Solution;
     use aoc::{Challenge, Parser};
 
     const INPUT: &str = "A Y
@@ -106,19 +106,19 @@ C Z
 
     #[test]
     fn parse() {
-        let output = Day02::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         println!("{output:?}");
     }
 
     #[test]
     fn part_one() {
-        let output = Day02::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_one(), 15);
     }
 
     #[test]
     fn part_two() {
-        let output = Day02::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_two(), 12);
     }
 }

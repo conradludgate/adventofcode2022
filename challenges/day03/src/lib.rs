@@ -5,9 +5,9 @@ use arrayvec::ArrayVec;
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day03(ArrayVec<(usize, usize), 300>);
+pub struct Solution(ArrayVec<(usize, usize), 300>);
 
-impl ChallengeParser for Day03 {
+impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut lines = ArrayVec::new();
         for slice in input.as_bytes().split(|&x| x == b'\n') {
@@ -18,7 +18,7 @@ impl ChallengeParser for Day03 {
     }
 }
 
-impl Challenge for Day03 {
+impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
@@ -50,7 +50,7 @@ fn bitset(x: &[u8]) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::Day03;
+    use super::Solution;
     use aoc::{Challenge, Parser};
 
     const INPUT: &str = "vJrwpWtwJgWrhcsFMMfFFhFp
@@ -62,19 +62,19 @@ CrZsJsPPZsGzwwsLwLmpwMDw";
 
     #[test]
     fn parse() {
-        let output = Day03::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         println!("{output:?}");
     }
 
     #[test]
     fn part_one() {
-        let output = Day03::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_one(), 157);
     }
 
     #[test]
     fn part_two() {
-        let output = Day03::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_two(), 70);
     }
 }

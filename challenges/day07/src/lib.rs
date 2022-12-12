@@ -6,9 +6,9 @@ use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day07(Vec<u32>);
+pub struct Solution(Vec<u32>);
 
-impl ChallengeParser for Day07 {
+impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         // this is the stack of the current nested directory sizes
         let mut stack = [0; 16];
@@ -76,7 +76,7 @@ impl ChallengeParser for Day07 {
     }
 }
 
-impl Challenge for Day07 {
+impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = u32;
@@ -93,7 +93,7 @@ impl Challenge for Day07 {
 
 #[cfg(test)]
 mod tests {
-    use super::Day07;
+    use super::Solution;
     use aoc::{Challenge, Parser};
 
     const INPUT: &str = "$ cd /
@@ -123,19 +123,19 @@ $ ls
 
     #[test]
     fn parse() {
-        let output = Day07::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         println!("{output:?}");
     }
 
     #[test]
     fn part_one() {
-        let output = Day07::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_one(), 95437);
     }
 
     #[test]
     fn part_two() {
-        let output = Day07::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_two(), 24933642);
     }
 }

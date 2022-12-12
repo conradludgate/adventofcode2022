@@ -34,14 +34,14 @@ impl Instruction {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day05 {
+pub struct Solution {
     data: &'static str,
     stack_count: usize,
     data_index_offsets: [usize; 9],
     instructions: Vec<Instruction>,
 }
 
-impl ChallengeParser for Day05 {
+impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let line_length = input.find('\n').unwrap() + 1;
         let block_length = input.find("\n\n").unwrap() + 1;
@@ -73,7 +73,7 @@ impl ChallengeParser for Day05 {
     }
 }
 
-impl Day05 {
+impl Solution {
     /// original logic:
     ///
     /// ```ignore
@@ -204,7 +204,7 @@ impl Day05 {
     }
 }
 
-impl Challenge for Day05 {
+impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = ArrayString<16>;
@@ -222,7 +222,7 @@ impl Challenge for Day05 {
 
 #[cfg(test)]
 mod tests {
-    use super::Day05;
+    use super::Solution;
     use aoc::{Challenge, Parser};
 
     const INPUT: &str = "    [D]    
@@ -238,19 +238,19 @@ move 1 from 1 to 2
 
     #[test]
     fn parse() {
-        let output = Day05::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         println!("{output:?}");
     }
 
     #[test]
     fn part_one() {
-        let output = Day05::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_one().as_str(), "CMZ");
     }
 
     #[test]
     fn part_two() {
-        let output = Day05::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_two().as_str(), "MCD");
     }
 }

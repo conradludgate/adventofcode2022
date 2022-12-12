@@ -5,7 +5,7 @@ use nom::{character::complete::line_ending, IResult, Parser};
 use parsers::{number, ParserExt};
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day01(Vec<usize>);
+pub struct Solution(Vec<usize>);
 
 #[derive(Default)]
 struct Sum(usize);
@@ -18,7 +18,7 @@ impl Extend<usize> for Sum {
     }
 }
 
-impl ChallengeParser for Day01 {
+impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         number::<usize> // numbers
             .terminate_list1(line_ending) // terminated by new lines
@@ -29,7 +29,7 @@ impl ChallengeParser for Day01 {
     }
 }
 
-impl Day01 {
+impl Solution {
     fn solve(mut self, n: usize) -> Vec<usize> {
         self.0.select_nth_unstable_by_key(n - 1, |x| cmp::Reverse(*x));
         self.0.truncate(n);
@@ -37,7 +37,7 @@ impl Day01 {
     }
 }
 
-impl Challenge for Day01 {
+impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
@@ -53,7 +53,7 @@ impl Challenge for Day01 {
 
 #[cfg(test)]
 mod tests {
-    use super::Day01;
+    use super::Solution;
     use aoc::{Challenge, Parser};
 
     const INPUT: &str = "1000
@@ -74,19 +74,19 @@ mod tests {
 
     #[test]
     fn parse() {
-        let output = Day01::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         println!("{output:?}");
     }
 
     #[test]
     fn part_one() {
-        let output = Day01::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_one(), 24000);
     }
 
     #[test]
     fn part_two() {
-        let output = Day01::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_two(), 45000);
     }
 }

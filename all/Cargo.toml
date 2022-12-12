@@ -1,0 +1,34 @@
+[package]
+name = "all"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aoc = { path = "../aoc" }
+day01 = { path = "../challenges/day01" }
+day02 = { path = "../challenges/day02" }
+day03 = { path = "../challenges/day03" }
+day04 = { path = "../challenges/day04" }
+day05 = { path = "../challenges/day05" }
+day06 = { path = "../challenges/day06" }
+day07 = { path = "../challenges/day07" }
+day08 = { path = "../challenges/day08" }
+day09 = { path = "../challenges/day09" }
+day10 = { path = "../challenges/day10" }
+day11 = { path = "../challenges/day11" }
+day12 = { path = "../challenges/day12" }
+# day13 = { path = "../challenges/day13" }
+# day14 = { path = "../challenges/day14" }
+# day15 = { path = "../challenges/day15" }
+# day16 = { path = "../challenges/day16" }
+# day17 = { path = "../challenges/day17" }
+# day18 = { path = "../challenges/day18" }
+# day19 = { path = "../challenges/day19" }
+# day20 = { path = "../challenges/day20" }
+# day21 = { path = "../challenges/day21" }
+# day22 = { path = "../challenges/day22" }
+# day23 = { path = "../challenges/day23" }
+# day24 = { path = "../challenges/day24" }
+# day25 = { path = "../challenges/day25" }

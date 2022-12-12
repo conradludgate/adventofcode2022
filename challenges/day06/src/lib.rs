@@ -5,16 +5,16 @@ use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day06(&'static [u8]);
+pub struct Solution(&'static [u8]);
 
-impl ChallengeParser for Day06 {
+impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let data = &input.as_bytes()[..input.rfind('\n').unwrap_or(input.len())];
         Ok(("", Self(data)))
     }
 }
 
-impl Day06 {
+impl Solution {
     #[inline(always)]
     fn solve(self, n: usize) -> usize {
         let mut counter = u8x32::default();
@@ -46,7 +46,7 @@ impl Day06 {
     }
 }
 
-impl Challenge for Day06 {
+impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
@@ -62,33 +62,51 @@ impl Challenge for Day06 {
 
 #[cfg(test)]
 mod tests {
-    use super::Day06;
+    use super::Solution;
     use aoc::{Challenge, Parser};
 
     #[test]
     fn part_one() {
-        assert_eq!(Day06::parse("bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap().1.part_one(), 5);
-        assert_eq!(Day06::parse("nppdvjthqldpwncqszvftbrmjlhg").unwrap().1.part_one(), 6);
+        assert_eq!(Solution::parse("bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap().1.part_one(), 5);
+        assert_eq!(Solution::parse("nppdvjthqldpwncqszvftbrmjlhg").unwrap().1.part_one(), 6);
         assert_eq!(
-            Day06::parse("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg").unwrap().1.part_one(),
+            Solution::parse("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg")
+                .unwrap()
+                .1
+                .part_one(),
             10
         );
         assert_eq!(
-            Day06::parse("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw").unwrap().1.part_one(),
+            Solution::parse("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw")
+                .unwrap()
+                .1
+                .part_one(),
             11
         );
     }
 
     #[test]
     fn part_two() {
-        assert_eq!(Day06::parse("bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap().1.part_two(), 23);
-        assert_eq!(Day06::parse("nppdvjthqldpwncqszvftbrmjlhg").unwrap().1.part_two(), 23);
         assert_eq!(
-            Day06::parse("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg").unwrap().1.part_two(),
+            Solution::parse("bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap().1.part_two(),
+            23
+        );
+        assert_eq!(
+            Solution::parse("nppdvjthqldpwncqszvftbrmjlhg").unwrap().1.part_two(),
+            23
+        );
+        assert_eq!(
+            Solution::parse("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg")
+                .unwrap()
+                .1
+                .part_two(),
             29
         );
         assert_eq!(
-            Day06::parse("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw").unwrap().1.part_two(),
+            Solution::parse("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw")
+                .unwrap()
+                .1
+                .part_two(),
             26
         );
     }

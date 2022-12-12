@@ -18,9 +18,9 @@ impl Range {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Day04(Vec<(Range, Range)>);
+pub struct Solution(Vec<(Range, Range)>);
 
-impl ChallengeParser for Day04 {
+impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         Range::parse
             .separated_array(tag(","))
@@ -31,7 +31,7 @@ impl ChallengeParser for Day04 {
     }
 }
 
-impl Challenge for Day04 {
+impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
@@ -59,7 +59,7 @@ impl Challenge for Day04 {
 
 #[cfg(test)]
 mod tests {
-    use super::Day04;
+    use super::Solution;
     use aoc::{Challenge, Parser};
 
     const INPUT: &str = "2-4,6-8
@@ -71,19 +71,19 @@ mod tests {
 
     #[test]
     fn parse() {
-        let output = Day04::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         println!("{output:?}");
     }
 
     #[test]
     fn part_one() {
-        let output = Day04::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_one(), 2);
     }
 
     #[test]
     fn part_two() {
-        let output = Day04::parse(INPUT).unwrap().1;
+        let output = Solution::parse(INPUT).unwrap().1;
         assert_eq!(output.part_two(), 4);
     }
 }
