@@ -5,24 +5,20 @@ use pathfinding::directed::bfs;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Solution {
     map: &'static [u8],
-    width: usize,
-    // height => map.len() / (width + 1)
-    start: usize, // as a 1d index in map
-    end: usize,   // as a 1d index in map
+    stride: usize,
+    end: usize,
 }
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         // memchr?
         let width = input.as_bytes().iter().position(|b| *b == b'\n').unwrap();
-        let start = input.as_bytes().iter().position(|b| *b == b'S').unwrap();
         let end = input.as_bytes().iter().position(|b| *b == b'E').unwrap();
         Ok((
             "",
             Self {
                 map: input.as_bytes(),
-                width,
-                start,
+                stride: width + 1,
                 end,
             },
         ))
@@ -31,8 +27,7 @@ impl ChallengeParser for Solution {
 
 impl Solution {
     fn solve(self, any: bool) -> usize {
-        let Self { map, width, end, start } = self;
-        let stride = width + 1;
+        let Self { map, stride, end } = self;
         // pathfind from E to S (or any 'a' if the flag is set)
         bfs::bfs(
             &end,
@@ -53,7 +48,7 @@ impl Solution {
                         vp != b'\n' && vp <= vq + 1
                     })
             },
-            |p| *p == start || (any && map[*p] == b'a'),
+            |p| map[*p] == b'S' || (any && map[*p] == b'a'),
         )
         .unwrap()
         .len()
