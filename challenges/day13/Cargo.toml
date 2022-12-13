@@ -9,6 +9,8 @@ edition = "2021"
 nom = "7.1"
 parsers = { path = "../../parsers" }
 aoc = { path = "../../aoc" }
+typed-arena = "2.0.1"
+arrayvec = "0.7"
 
 [dev-dependencies]
 criterion = "0.4"

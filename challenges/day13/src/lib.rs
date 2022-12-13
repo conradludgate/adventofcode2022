@@ -1,33 +1,35 @@
-use std::fmt;
+use std::{cmp, fmt};
 
 use aoc::{Challenge, Parser as ChallengeParser};
-use nom::{bytes::complete::tag, IResult, Parser};
+use arrayvec::ArrayVec;
+use nom::IResult;
+use typed_arena::Arena;
 
-#[derive(Clone)]
-enum Entry {
-    List(Vec<Entry>),
+#[derive(Clone, Copy)]
+enum Entry<'a> {
+    List(&'a [Entry<'a>]),
     Value(u8),
 }
 
-impl fmt::Debug for Entry {
+impl fmt::Debug for Entry<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::List(list) => f.debug_list().entries(list).finish(),
+            Self::List(list) => f.debug_list().entries(list.iter()).finish(),
             Self::Value(e) => e.fmt(f),
         }
     }
 }
 
-impl Entry {
-    fn parse(input: &'static [u8]) -> (&'static [u8], Self) {
+impl<'a> Entry<'a> {
+    fn parse(arena: &'a Arena<Entry<'a>>, input: &'static [u8]) -> (&'static [u8], Self) {
         let (mut first, mut input) = input.split_first().unwrap();
         if *first == b'[' {
-            let mut list = Vec::new();
+            let mut list = ArrayVec::<Entry, 16>::new();
 
             // skip empty lists
             if *input.first().unwrap() != b']' {
                 loop {
-                    let (i, e) = Entry::parse(input);
+                    let (i, e) = Entry::parse(arena, input);
                     list.push(e);
 
                     // check for `,` or `]`
@@ -40,10 +42,10 @@ impl Entry {
                 (_, input) = input.split_first().unwrap();
             }
 
-            (input, Entry::List(list))
+            (input, Entry::List(arena.alloc_extend(list)))
         } else {
             let mut n = *first - b'0';
-            while input.first().unwrap().is_ascii_digit() {
+            while let Some(b'0'..=b'9') = input.first() {
                 (first, input) = input.split_first().unwrap();
                 n *= 10;
                 n += *first - b'0';
@@ -53,31 +55,26 @@ impl Entry {
     }
 }
 
-impl PartialEq for Entry {
+impl cmp::PartialEq for Entry<'_> {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Entry::Value(e1), Entry::Value(e2)) => e1.eq(e2),
-            (Entry::List(l1), Entry::List(l2)) => l1.eq(l2),
-            (Entry::List(l1), Entry::Value(e2)) => l1.as_slice().eq(&[Entry::Value(*e2)]),
-            (Entry::Value(e1), Entry::List(l2)) => [Entry::Value(*e1)].as_slice().eq(l2.as_slice()),
-        }
+        self.cmp(other) == cmp::Ordering::Equal
     }
 }
-impl Eq for Entry {}
+impl cmp::Eq for Entry<'_> {}
 
-impl PartialOrd for Entry {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+impl cmp::PartialOrd for Entry<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Entry {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+impl cmp::Ord for Entry<'_> {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
         match (self, other) {
             (Entry::Value(e1), Entry::Value(e2)) => e1.cmp(e2),
             (Entry::List(l1), Entry::List(l2)) => l1.cmp(l2),
-            (Entry::List(l1), Entry::Value(e2)) => l1.as_slice().cmp(&[Entry::Value(*e2)]),
-            (Entry::Value(e1), Entry::List(l2)) => [Entry::Value(*e1)].as_slice().cmp(l2.as_slice()),
+            (Entry::List(l1), Entry::Value(e2)) => (*l1).cmp(&[Entry::Value(*e2)]),
+            (Entry::Value(e1), Entry::List(l2)) => [Entry::Value(*e1)].as_slice().cmp(l2),
         }
     }
 }
@@ -89,18 +86,20 @@ impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut sum = 0;
 
-        let two = Entry::parse(b"[[2]]").1;
-        let six = Entry::parse(b"[[6]]").1;
+        let arena = Arena::new();
 
-        let mut lists = vec![two.clone(), six.clone()];
+        let two = Entry::parse(&arena, b"[[2]]").1;
+        let six = Entry::parse(&arena, b"[[6]]").1;
+
+        let mut lists = vec![two, six];
 
         for (i, pair) in input.split("\n\n").enumerate() {
             let i = i + 1;
 
             let (left, right) = pair.split_once('\n').unwrap();
 
-            let left1 = Entry::parse(left.as_bytes()).1;
-            let right1 = Entry::parse(right.as_bytes()).1;
+            let left1 = Entry::parse(&arena, left.as_bytes()).1;
+            let right1 = Entry::parse(&arena, right.as_bytes()).1;
 
             if left1 < right1 {
                 sum += i;
@@ -118,7 +117,7 @@ impl ChallengeParser for Solution {
         let right = iter.rposition(|p| p == six).unwrap();
         let left = iter.position(|p| p == two).unwrap();
 
-        Ok(("", Self(sum, (left+1)*(right+1))))
+        Ok(("", Self(sum, (left + 1) * (right + 1))))
     }
 }
 
