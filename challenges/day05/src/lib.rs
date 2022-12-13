@@ -4,7 +4,9 @@ use std::simd::{u8x16, Mask, Simd, SimdPartialEq, SimdPartialOrd};
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use arrayvec::ArrayString;
-use nom::{bytes::complete::tag, character::streaming::line_ending, sequence::tuple, IResult, Parser};
+use nom::{
+    bytes::complete::tag, character::streaming::line_ending, sequence::tuple, IResult, Parser,
+};
 use parsers::{number, ParserExt};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -60,7 +62,9 @@ impl ChallengeParser for Solution {
             }
         }
 
-        let (input, instructions) = Instruction::parse.terminate_list1(line_ending).parse(input)?;
+        let (input, instructions) = Instruction::parse
+            .terminate_list1(line_ending)
+            .parse(input)?;
         Ok((
             input,
             Self {
@@ -157,8 +161,8 @@ impl Solution {
             let to = u8x16::splat(inst.to);
             let from = u8x16::splat(inst.from);
 
-            let should_move_mask =
-                offsets.simd_lt(count).to_int().cast::<u8>() & stacks.simd_eq(to).to_int().cast::<u8>();
+            let should_move_mask = offsets.simd_lt(count).to_int().cast::<u8>()
+                & stacks.simd_eq(to).to_int().cast::<u8>();
 
             let mut slice = [0; 16];
             slice[inst.from as usize & 0xf] = inst.count;
@@ -193,7 +197,8 @@ impl Solution {
         let stacks = stacks.cast();
         let offsets = offsets.cast();
 
-        let index = Simd::gather_select(&data_index_offsets, mask, stacks, Default::default()) + offsets;
+        let index =
+            Simd::gather_select(&data_index_offsets, mask, stacks, Default::default()) + offsets;
         let index = index * Simd::splat(stack_count * 4) + stacks * Simd::splat(4) + Simd::splat(1);
 
         let output = u8x16::gather_select(data.as_bytes(), mask, index, Default::default());

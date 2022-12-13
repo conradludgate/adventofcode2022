@@ -46,7 +46,10 @@ where
 
             // infinite loop check: the parser must always consume
             if input.input_len() == len {
-                return Err(Err::Error(E::from_error_kind(input, ErrorKind::SeparatedList)));
+                return Err(Err::Error(E::from_error_kind(
+                    input,
+                    ErrorKind::SeparatedList,
+                )));
             }
 
             res.extend(Some(n));
@@ -90,7 +93,10 @@ where
 
             // infinite loop check: the parser must always consume
             if input.input_len() == len {
-                return Err(Err::Error(E::from_error_kind(input, ErrorKind::SeparatedList)));
+                return Err(Err::Error(E::from_error_kind(
+                    input,
+                    ErrorKind::SeparatedList,
+                )));
             }
 
             res.extend(Some(n));

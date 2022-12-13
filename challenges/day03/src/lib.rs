@@ -43,7 +43,12 @@ impl Challenge for Solution {
 fn bitset(x: &[u8]) -> usize {
     let mut set = 0;
     for &x in x {
-        set |= 1 << if x >= b'a' { x - b'a' + 1 } else { x - b'A' + 27 };
+        set |= 1
+            << if x >= b'a' {
+                x - b'a' + 1
+            } else {
+                x - b'A' + 27
+            };
     }
     set
 }

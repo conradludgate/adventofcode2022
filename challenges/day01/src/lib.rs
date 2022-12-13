@@ -31,7 +31,8 @@ impl ChallengeParser for Solution {
 
 impl Solution {
     fn solve(mut self, n: usize) -> Vec<usize> {
-        self.0.select_nth_unstable_by_key(n - 1, |x| cmp::Reverse(*x));
+        self.0
+            .select_nth_unstable_by_key(n - 1, |x| cmp::Reverse(*x));
         self.0.truncate(n);
         self.0
     }

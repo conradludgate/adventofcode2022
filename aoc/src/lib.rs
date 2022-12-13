@@ -57,6 +57,9 @@ fn submit<C: Challenge, S: Display>(level: usize, answer: S) {
 
     ureq::post(&url)
         .set("Cookie", &format!("session={session}"))
-        .send_form(&[("level", &format!("{level}")), ("answer", &format!("{answer}"))])
+        .send_form(&[
+            ("level", &format!("{level}")),
+            ("answer", &format!("{answer}")),
+        ])
         .unwrap();
 }

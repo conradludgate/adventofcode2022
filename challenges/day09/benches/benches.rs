@@ -10,10 +10,18 @@ pub fn day09(c: &mut Criterion) {
 
     group.bench_function("parse", |b| b.iter(|| Solution::parse(black_box(input))));
     group.bench_function("part1", |b| {
-        b.iter_batched(|| challenge.clone(), Challenge::part_one, BatchSize::SmallInput)
+        b.iter_batched(
+            || challenge.clone(),
+            Challenge::part_one,
+            BatchSize::SmallInput,
+        )
     });
     group.bench_function("part2", |b| {
-        b.iter_batched(|| challenge.clone(), Challenge::part_two, BatchSize::SmallInput)
+        b.iter_batched(
+            || challenge.clone(),
+            Challenge::part_two,
+            BatchSize::SmallInput,
+        )
     });
 
     group.finish();

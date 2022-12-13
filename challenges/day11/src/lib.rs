@@ -48,8 +48,12 @@ impl Monkey {
         let (input, _) = take_until("items: ").parse(input)?;
         let (input, _) = tag("items: ").parse(input)?;
         let (input, items) = number.separated_list1(tag(", ")).parse(input)?;
-        let (input, op) = Operation::parse.preceded_by(tag("\n  Operation: ")).parse(input)?;
-        let (input, test) = number.preceded_by(tag("\n  Test: divisible by ")).parse(input)?;
+        let (input, op) = Operation::parse
+            .preceded_by(tag("\n  Operation: "))
+            .parse(input)?;
+        let (input, test) = number
+            .preceded_by(tag("\n  Test: divisible by "))
+            .parse(input)?;
         let (input, throw1) = number
             .preceded_by(tag("\n    If true: throw to monkey "))
             .parse(input)?;
@@ -75,7 +79,10 @@ pub struct Solution(ArrayVec<Monkey, 8>);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        Monkey::parse.separated_list1(tag("\n\n")).map(Self).parse(input)
+        Monkey::parse
+            .separated_list1(tag("\n\n"))
+            .map(Self)
+            .parse(input)
     }
 }
 

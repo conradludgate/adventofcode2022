@@ -20,7 +20,9 @@ where
 }
 
 pub fn binary(input: &str) -> IResult<&str, usize> {
-    is_a("01").map_res(|s| usize::from_str_radix(s, 2)).parse(input)
+    is_a("01")
+        .map_res(|s| usize::from_str_radix(s, 2))
+        .parse(input)
 }
 
 pub fn lines<'a, O, E, F>(f: F) -> impl Parser<&'a str, Vec<O>, E>

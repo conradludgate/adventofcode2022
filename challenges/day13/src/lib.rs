@@ -88,41 +88,38 @@ impl cmp::PartialOrd for EntrySlice<'_> {
 
 impl cmp::Ord for EntrySlice<'_> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        match (self.0, other.0) {
-            // compare single values
-            ([Entry::Value(e1), rest1 @ ..], [Entry::Value(e2), rest2 @ ..]) => e1
-                .cmp(e2)
-                .then_with(|| EntrySlice::cmp(&EntrySlice(rest1), &EntrySlice(rest2))),
+        let ((head1, mut tail1), (head2, mut tail2)) =
+            match (self.0.split_first(), other.0.split_first()) {
+                (None, None) => return cmp::Ordering::Equal,
+                (None, Some(_)) => return cmp::Ordering::Less,
+                (Some(_), None) => return cmp::Ordering::Greater,
+                (Some(l), Some(r)) => (l, r),
+            };
 
-            // compare list against list
-            (l1 @ [Entry::List(o1), ..], l2 @ [Entry::List(o2), ..]) => {
-                let (l1, rest1) = l1.split_at(*o1 as usize);
-                let (l2, rest2) = l2.split_at(*o2 as usize);
-                EntrySlice::cmp(&EntrySlice(&l1[1..]), &EntrySlice(&l2[1..]))
-                    .then_with(|| EntrySlice::cmp(&EntrySlice(rest1), &EntrySlice(rest2)))
+        // match the heads of the list. If the head is itself a list, slice up accordingly
+        let cmp = match (head1, head2) {
+            (Entry::List(o1), Entry::List(o2)) => {
+                let list1;
+                let list2;
+                (list1, tail1) = self.0.split_at(*o1 as usize);
+                (list2, tail2) = other.0.split_at(*o2 as usize);
+                EntrySlice::cmp(&EntrySlice(&list1[1..]), &EntrySlice(&list2[1..]))
             }
-
-            // compare list with value
-            (l1 @ [Entry::List(i), ..], [e2 @ Entry::Value(_), rest2 @ ..]) => {
-                let (l1, rest1) = l1.split_at(*i as usize);
-                let l2 = &[Entry::List(2), *e2]; // construct value as list
-                EntrySlice::cmp(&EntrySlice(l1), &EntrySlice(l2))
-                    .then_with(|| EntrySlice::cmp(&EntrySlice(rest1), &EntrySlice(rest2)))
+            (Entry::List(o1), e2 @ Entry::Value(_)) => {
+                let list1;
+                (list1, tail1) = self.0.split_at(*o1 as usize);
+                EntrySlice::cmp(&EntrySlice(&list1[1..]), &EntrySlice(&[*e2]))
             }
-
-            // compare value with list
-            ([e1 @ Entry::Value(_), rest1 @ ..], l2 @ [Entry::List(i), ..]) => {
-                let l1 = &[Entry::List(2), *e1]; // construct value as list
-                let (l2, rest2) = l2.split_at(*i as usize);
-                EntrySlice::cmp(&EntrySlice(l1), &EntrySlice(l2))
-                    .then_with(|| EntrySlice::cmp(&EntrySlice(rest1), &EntrySlice(rest2)))
+            (e1 @ Entry::Value(_), Entry::List(o2)) => {
+                let list2;
+                (list2, tail2) = other.0.split_at(*o2 as usize);
+                EntrySlice::cmp(&EntrySlice(&[*e1]), &EntrySlice(&list2[1..]))
             }
+            (Entry::Value(a), Entry::Value(b)) => a.cmp(b),
+        };
 
-            // edge cases
-            ([], []) => cmp::Ordering::Equal,
-            ([], [..]) => cmp::Ordering::Less,
-            ([..], []) => cmp::Ordering::Greater,
-        }
+        // finally, continue comparing the tails
+        cmp.then_with(|| Self::cmp(&Self(tail1), &Self(tail2)))
     }
 }
 

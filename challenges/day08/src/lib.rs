@@ -9,7 +9,10 @@ pub struct Solution(u32, u32);
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let input = input.as_bytes();
-        let line = input.iter().position(|&b| b == b'\n').unwrap_or(input.len());
+        let line = input
+            .iter()
+            .position(|&b| b == b'\n')
+            .unwrap_or(input.len());
         let stride = line + 1;
 
         let width = stride - 1;
@@ -84,7 +87,11 @@ impl ChallengeParser for Solution {
         }
 
         // finish cols
-        for (i, (col_stack, idx)) in col_stacks.chunks_mut(height).zip(col_stacks_idx).enumerate() {
+        for (i, (col_stack, idx)) in col_stacks
+            .chunks_mut(height)
+            .zip(col_stacks_idx)
+            .enumerate()
+        {
             let i = input.len() + i;
             for idx in col_stack[..idx as usize].iter().copied() {
                 set[idx as usize].0 *= (i as u32 - idx) / stride as u32 - 1; // downward view distance
@@ -92,9 +99,9 @@ impl ChallengeParser for Solution {
             }
         }
 
-        let (view, seen) = set
-            .into_iter()
-            .fold((0, 0), |(max, sum), (view, seen)| (u32::max(max, view), sum + seen));
+        let (view, seen) = set.into_iter().fold((0, 0), |(max, sum), (view, seen)| {
+            (u32::max(max, view), sum + seen)
+        });
 
         Ok(("", Self(view, seen)))
     }

@@ -54,8 +54,9 @@ impl ChallengeParser for Solution {
                     let number = (number - u8x8::splat(b'0')).cast();
                     let number_mask = number.simd_lt(u32x8::splat(10)).to_int().cast();
 
-                    let pows =
-                        u32x8::from_array([10_000_000, 1_000_000, 100_000, 10_000, 1_000, 100, 10, 1]) & number_mask;
+                    let pows = u32x8::from_array([
+                        10_000_000, 1_000_000, 100_000, 10_000, 1_000, 100, 10, 1,
+                    ]) & number_mask;
 
                     let pow = 100_000_000 - pows.reduce_sum() * 9;
                     let size = (pows * number).reduce_sum() / pow;

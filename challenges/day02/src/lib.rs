@@ -1,6 +1,7 @@
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::{
-    branch::alt, bytes::complete::tag, character::complete::line_ending, sequence::separated_pair, IResult, Parser,
+    branch::alt, bytes::complete::tag, character::complete::line_ending, sequence::separated_pair,
+    IResult, Parser,
 };
 use parsers::ParserExt;
 

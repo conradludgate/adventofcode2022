@@ -67,8 +67,20 @@ mod tests {
 
     #[test]
     fn part_one() {
-        assert_eq!(Solution::parse("bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap().1.part_one(), 5);
-        assert_eq!(Solution::parse("nppdvjthqldpwncqszvftbrmjlhg").unwrap().1.part_one(), 6);
+        assert_eq!(
+            Solution::parse("bvwbjplbgvbhsrlpgdmjqwftvncz")
+                .unwrap()
+                .1
+                .part_one(),
+            5
+        );
+        assert_eq!(
+            Solution::parse("nppdvjthqldpwncqszvftbrmjlhg")
+                .unwrap()
+                .1
+                .part_one(),
+            6
+        );
         assert_eq!(
             Solution::parse("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg")
                 .unwrap()
@@ -88,11 +100,17 @@ mod tests {
     #[test]
     fn part_two() {
         assert_eq!(
-            Solution::parse("bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap().1.part_two(),
+            Solution::parse("bvwbjplbgvbhsrlpgdmjqwftvncz")
+                .unwrap()
+                .1
+                .part_two(),
             23
         );
         assert_eq!(
-            Solution::parse("nppdvjthqldpwncqszvftbrmjlhg").unwrap().1.part_two(),
+            Solution::parse("nppdvjthqldpwncqszvftbrmjlhg")
+                .unwrap()
+                .1
+                .part_two(),
             23
         );
         assert_eq!(
