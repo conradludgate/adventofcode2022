@@ -83,118 +83,42 @@ impl Ord for Entry {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(usize);
+pub struct Solution(usize, usize);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut sum = 0;
+
+        let two = Entry::parse(b"[[2]]").1;
+        let six = Entry::parse(b"[[6]]").1;
+
+        let mut lists = vec![two.clone(), six.clone()];
+
         for (i, pair) in input.split("\n\n").enumerate() {
             let i = i + 1;
 
             let (left, right) = pair.split_once('\n').unwrap();
 
-
             let left1 = Entry::parse(left.as_bytes()).1;
             let right1 = Entry::parse(right.as_bytes()).1;
 
-            println!("== Pair {i} ==: {left1:?} vs {right1:?}");
-
-            match left1.cmp(&right1) {
-                std::cmp::Ordering::Less => sum += i,
-                std::cmp::Ordering::Equal => {
-                    dbg!(i, left1, right1);
-                }
-                std::cmp::Ordering::Greater => {}
+            if left1 < right1 {
+                sum += i;
+                lists.push(left1);
+                lists.push(right1);
+            } else {
+                lists.push(right1);
+                lists.push(left1);
             }
-
-            // dbg!(left1);
-            // dbg!(right1);
-
-            // let mut left = left.as_bytes();
-            // let mut right = right.as_bytes();
-            // let mut fake_list_stack = (0u16, 0u16);
-            // sum += loop {
-            //     let Some(l) = left.first().copied() else { break i };
-            //     let Some(r) = right.first().copied() else { break 0 };
-
-            //     if fake_list_stack.0 > 0 || fake_list_stack.1 > 0 {
-            //         println!("==============> {fake_list_stack:?}");
-            //         println!("{}", std::str::from_utf8(left).unwrap());
-            //         println!("{}", std::str::from_utf8(right).unwrap());
-            //     }
-
-            //     if l != r {
-            //         // left list drained first
-            //         if l == b']' {
-            //             if let Some(s) = fake_list_stack.1.checked_sub(1) {
-            //                 fake_list_stack.1 = s;
-            //                 left = left.split_first().unwrap().1;
-            //                 continue;
-            //             } else {
-            //                 break i;
-            //             }
-            //         }
-            //         // right list drained first
-            //         if r == b']' {
-            //             if let Some(s) = fake_list_stack.0.checked_sub(1) {
-            //                 fake_list_stack.0 = s;
-            //                 right = right.split_first().unwrap().1;
-            //                 continue;
-            //             } else {
-            //                 break i;
-            //             }
-            //         }
-
-            //         // If exactly one value is an integer, convert the integer to a list
-            //         // which contains that integer as its only value, then retry the
-            //         // comparison. For example, if comparing [0,0,0] and 2, convert the right
-            //         // value to [2] (a list containing 2); the result is then found by
-            //         // instead comparing [0,0,0] and [2].
-
-            //         // possible cases:
-            //         // []    vs [x] => we will next compare `]` to `x`
-            //         //                 this will always exit
-            //         // [y]   vs [x] => we will next compare `y` to `x`.
-            //         //                 if y != x, we will exit
-            //         //                 if y == x, we will compare `]` to `,` or `]`
-            //         // [y,z] vs [x] => we will next compare `y` to `x`.
-            //         //                 if y != x, we will exit
-            //         //                 if y == x, we will compare `,` to `,` or `]`.
-
-            //         if l == b'[' {
-            //             fake_list_stack.1 += 1;
-            //             // consume only the [
-            //             left = left.split_first().unwrap().1;
-            //             continue;
-            //         }
-            //         if r == b'[' {
-            //             fake_list_stack.0 += 1;
-            //             // consume only the [
-            //             right = right.split_first().unwrap().1;
-            //             continue;
-            //         }
-
-            //         if l < r {
-            //             break i;
-            //         } else {
-            //             break 0;
-            //         }
-            //     }
-
-            //     match (fake_list_stack.0.checked_sub(1), fake_list_stack.1.checked_sub(1)) {
-            //         (Some(l), Some(r)) => fake_list_stack = (l, r),
-            //         (Some(_), None) => break 0,
-            //         (None, Some(_)) => break i,
-            //         (None, None) => {
-            //             left = left.split_first().unwrap().1;
-            //             right = right.split_first().unwrap().1;
-            //         }
-            //     }
-            // };
-            // println!("sum = {sum}");
         }
 
-        Ok(("", Self(sum)))
+        lists.sort();
+
+        let mut iter = lists.into_iter();
+        let right = iter.rposition(|p| p == six).unwrap();
+        let left = iter.position(|p| p == two).unwrap();
+
+        Ok(("", Self(sum, (left+1)*(right+1))))
     }
 }
 
@@ -208,7 +132,7 @@ impl Challenge for Solution {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        0
+        self.1
     }
 }
 
@@ -217,8 +141,29 @@ mod tests {
     use super::Solution;
     use aoc::{Challenge, Parser};
 
-    const INPUT: &str = "[[],[9,[[7,10,8],2,4],2],[3,5,3,10]]
-[[],[1,6],[1,8]]
+    const INPUT: &str = "[1,1,3,1,1]
+[1,1,5,1,1]
+
+[[1],[2,3,4]]
+[[1],4]
+
+[9]
+[[8,7,6]]
+
+[[4,4],4,4]
+[[4,4],4,4,4]
+
+[7,7,7,7]
+[7,7,7]
+
+[]
+[3]
+
+[[[]]]
+[[]]
+
+[1,[2,[3,[4,[5,6,7]]]],8,9]
+[1,[2,[3,[4,[5,6,0]]]],8,9]
 ";
 
     #[test]
@@ -236,6 +181,6 @@ mod tests {
     #[test]
     fn part_two() {
         let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        assert_eq!(output.part_two(), 140);
     }
 }
