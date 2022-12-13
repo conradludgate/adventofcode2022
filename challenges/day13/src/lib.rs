@@ -141,11 +141,15 @@ pub struct Solution(usize, usize);
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut sum = 0;
+        let mut x = 1;
+        let mut y = 2;
 
-        let mut arena = Vec::with_capacity(input.len());
-        let mut ranges = Vec::with_capacity(input.len() / 50);
+        let mut arena = Vec::with_capacity(512);
 
         let mut input = input.as_bytes();
+
+        let two = EntrySlice::wrap_ref(&[Entry::Value(2)]);
+        let six = EntrySlice::wrap_ref(&[Entry::Value(6)]);
 
         for i in 1.. {
             if input.is_empty() {
@@ -164,32 +168,50 @@ impl ChallengeParser for Solution {
             (input, right) = Entry::parse_list(&mut arena, input);
             input = &input[1..]; // trim `\n`
 
-            // save the ranges
-            ranges.push(left.clone());
-            ranges.push(right.clone());
-
             // construct our entryslice helpers
-            let left = EntrySlice::wrap_ref(&arena[left]);
-            let right = EntrySlice::wrap_ref(&arena[right]);
-
-            // println!("bar {left:?} <=> {right:?}");
+            let mut left = EntrySlice::wrap_ref(&arena[left]);
+            let mut right = EntrySlice::wrap_ref(&arena[right]);
 
             if left < right {
                 sum += i;
+            } else {
+                std::mem::swap(&mut left, &mut right)
             }
+
+            // left <= right
+            // either:
+            // 1. two <= six <= left <= right - no increase
+            // 2. two <= left <= six <= right - increase y by 1
+            // 3. two <= left <= right <= six - increase y by 2
+            // 4. left <= two <= six <= right - increase y by 1 and x by 1
+            // 5. left <= two <= right <= six - increase y by 2 and x by 1
+            // 6. left <= right <= two <= six - increase y by 2 and x by 2
+            if two > right {
+                // case 6
+                y += 2;
+                x += 2;
+            } else if two > left {
+                // case 4 or 5
+                y += 1;
+                x += 1;
+                if six > right {
+                    // case 5
+                    y += 1;
+                }
+            } else if six > right {
+                // case 3
+                y += 2;
+            } else if six > left {
+                // case 2
+                y += 1;
+            } else {
+                // case 1
+            }
+
+            arena.clear();
         }
 
-        let by_key = |x: &std::ops::Range<usize>| EntrySlice::wrap_ref(&arena[x.clone()]);
-        ranges.sort_unstable_by_key(by_key);
-
-        let two = [Entry::Value(2)];
-        let six = [Entry::Value(6)];
-
-        let (Ok(x) | Err(x)) = ranges.binary_search_by_key(&EntrySlice::wrap_ref(&two), by_key);
-        let (Ok(y) | Err(y)) = ranges.binary_search_by_key(&EntrySlice::wrap_ref(&six), by_key);
-
-        Ok(("", Self(sum, (x + 1) * (y + 2))))
-        // Ok(("", Self(0, 0)))
+        Ok(("", Self(sum, x * y)))
     }
 }
 
