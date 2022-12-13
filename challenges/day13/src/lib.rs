@@ -89,6 +89,7 @@ impl cmp::PartialEq for EntrySlice {
         self.cmp(other) == cmp::Ordering::Equal
     }
 }
+
 impl cmp::Eq for EntrySlice {}
 
 impl cmp::PartialOrd for EntrySlice {
@@ -97,41 +98,87 @@ impl cmp::PartialOrd for EntrySlice {
     }
 }
 
+impl EntrySlice {
+    fn cmp_lt(a: &u8, b: &u8) -> cmp::Ordering {
+        if a < b {
+            cmp::Ordering::Less
+        } else {
+            cmp::Ordering::Greater
+        }
+    }
+
+    // Compare EntrySlice with Entry::Value(other)
+    fn cmp_value(&self, other: &u8) -> cmp::Ordering {
+        let mut slice = &self.0;
+        loop {
+            break match slice {
+                [] => cmp::Ordering::Less,
+                [Entry::Value(e)] => e.cmp(other),
+                [Entry::Value(e), ..] => Self::cmp_lt(e, other),
+                [Entry::List(i), ..] => {
+                    slice = &slice[1..(*i as usize) + 1];
+                    continue;
+                }
+            };
+        }
+    }
+
+    // Equivalent to (self.cmp_value(2), self.cmp_value(6)), but maybe faster
+    fn cmp_value26(&self) -> (cmp::Ordering, cmp::Ordering) {
+        let mut slice = &self.0;
+        loop {
+            break match slice {
+                [] => (cmp::Ordering::Less, cmp::Ordering::Less),
+                [Entry::Value(e)] => (e.cmp(&2), e.cmp(&6)),
+                [Entry::Value(e), ..] => (Self::cmp_lt(e, &2), Self::cmp_lt(e, &6)),
+                [Entry::List(i), ..] => {
+                    slice = &slice[1..(*i as usize) + 1];
+                    continue;
+                }
+            };
+        }
+    }
+}
+
 impl cmp::Ord for EntrySlice {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        let ((head1, mut tail1), (head2, mut tail2)) =
-            match (self.0.split_first(), other.0.split_first()) {
+        let mut list1;
+        let mut list2;
+        let mut head1;
+        let mut head2;
+        let mut tail1 = &self.0;
+        let mut tail2 = &other.0;
+
+        loop {
+            ((head1, tail1), (head2, tail2)) = match (tail1.split_first(), tail2.split_first()) {
                 (None, None) => return cmp::Ordering::Equal,
                 (None, Some(_)) => return cmp::Ordering::Less,
                 (Some(_), None) => return cmp::Ordering::Greater,
                 (Some(l), Some(r)) => (l, r),
             };
 
-        let list1;
-        let list2;
+            // match the heads of the list. If the head is itself a list, slice up accordingly
+            let cmp = match (head1, head2) {
+                (Entry::Value(a), Entry::Value(b)) => a.cmp(b),
+                (Entry::List(o1), Entry::List(o2)) => {
+                    (list1, tail1) = tail1.split_at(*o1 as usize);
+                    (list2, tail2) = tail2.split_at(*o2 as usize);
+                    EntrySlice::cmp(EntrySlice::wrap_ref(list1), EntrySlice::wrap_ref(list2))
+                }
+                (Entry::List(o1), Entry::Value(e2)) => {
+                    (list1, tail1) = tail1.split_at(*o1 as usize);
+                    EntrySlice::wrap_ref(list1).cmp_value(e2)
+                }
+                (Entry::Value(e1), Entry::List(o2)) => {
+                    (list2, tail2) = tail2.split_at(*o2 as usize);
+                    EntrySlice::wrap_ref(list2).cmp_value(e1).reverse()
+                }
+            };
 
-        // match the heads of the list. If the head is itself a list, slice up accordingly
-        let cmp = match (head1, head2) {
-            (Entry::Value(a), Entry::Value(b)) => a.cmp(b),
-            (Entry::List(o1), Entry::List(o2)) => {
-                (list1, tail1) = tail1.split_at(*o1 as usize);
-                (list2, tail2) = tail2.split_at(*o2 as usize);
-                EntrySlice::cmp(EntrySlice::wrap_ref(list1), EntrySlice::wrap_ref(list2))
+            if cmp.is_ne() {
+                break cmp;
             }
-            (Entry::List(o1), e2 @ Entry::Value(_)) => {
-                (list1, tail1) = tail1.split_at(*o1 as usize);
-                let list2 = &[*e2];
-                EntrySlice::cmp(EntrySlice::wrap_ref(list1), EntrySlice::wrap_ref(list2))
-            }
-            (e1 @ Entry::Value(_), Entry::List(o2)) => {
-                let list1 = &[*e1];
-                (list2, tail2) = tail2.split_at(*o2 as usize);
-                EntrySlice::cmp(EntrySlice::wrap_ref(list1), EntrySlice::wrap_ref(list2))
-            }
-        };
-
-        // finally, continue comparing the tails
-        cmp.then_with(|| Self::cmp(Self::wrap_ref(tail1), Self::wrap_ref(tail2)))
+        }
     }
 }
 
@@ -148,8 +195,8 @@ impl ChallengeParser for Solution {
 
         let mut input = input.as_bytes();
 
-        let two = EntrySlice::wrap_ref(&[Entry::Value(2)]);
-        let six = EntrySlice::wrap_ref(&[Entry::Value(6)]);
+        // let two = EntrySlice::wrap_ref(&[Entry::Value(2)]);
+        // let six = EntrySlice::wrap_ref(&[Entry::Value(6)]);
 
         for i in 1.. {
             if input.is_empty() {
@@ -169,44 +216,18 @@ impl ChallengeParser for Solution {
             input = &input[1..]; // trim `\n`
 
             // construct our entryslice helpers
-            let mut left = EntrySlice::wrap_ref(&arena[left]);
-            let mut right = EntrySlice::wrap_ref(&arena[right]);
+            let left = EntrySlice::wrap_ref(&arena[left]);
+            let right = EntrySlice::wrap_ref(&arena[right]);
 
             if left < right {
                 sum += i;
-            } else {
-                std::mem::swap(&mut left, &mut right)
             }
 
-            // left <= right
-            // either:
-            // 1. two <= six <= left <= right - no increase
-            // 2. two <= left <= six <= right - increase y by 1
-            // 3. two <= left <= right <= six - increase y by 2
-            // 4. left <= two <= six <= right - increase y by 1 and x by 1
-            // 5. left <= two <= right <= six - increase y by 2 and x by 1
-            // 6. left <= right <= two <= six - increase y by 2 and x by 2
-            if two > right {
-                // case 6
-                y += 2;
-                x += 2;
-            } else if two > left {
-                // case 4 or 5
-                y += 1;
-                x += 1;
-                if six > right {
-                    // case 5
-                    y += 1;
-                }
-            } else if six > right {
-                // case 3
-                y += 2;
-            } else if six > left {
-                // case 2
-                y += 1;
-            } else {
-                // case 1
-            }
+            let (right2, right6) = right.cmp_value26();
+            let (left2, left6) = left.cmp_value26();
+
+            x += (left2.is_lt() as usize) + (right2.is_lt() as usize);
+            y += (left6.is_lt() as usize) + (right6.is_lt() as usize);
 
             arena.clear();
         }
