@@ -1,6 +1,7 @@
 use std::{cmp, fmt, ops::Range};
 
 use aoc::{Challenge, Parser as ChallengeParser};
+use bytemuck::TransparentWrapper;
 use nom::IResult;
 
 #[derive(Clone, Copy, Debug)]
@@ -57,12 +58,14 @@ impl Entry {
     }
 }
 
-struct EntrySlice<'a>(&'a [Entry]);
+#[derive(TransparentWrapper)]
+#[repr(transparent)]
+struct EntrySlice([Entry]);
 
-impl fmt::Debug for EntrySlice<'_> {
+impl fmt::Debug for EntrySlice {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut list = f.debug_list();
-        let mut slice = self.0;
+        let mut slice = &self.0;
 
         loop {
             match slice {
@@ -72,7 +75,7 @@ impl fmt::Debug for EntrySlice<'_> {
                 }
                 [Entry::List(o), rest @ ..] => {
                     let (entries, rest) = rest.split_at(*o as usize);
-                    list.entry(&EntrySlice(entries));
+                    list.entry(&EntrySlice::wrap_ref(entries));
                     slice = rest
                 }
                 [] => return list.finish(),
@@ -81,20 +84,20 @@ impl fmt::Debug for EntrySlice<'_> {
     }
 }
 
-impl cmp::PartialEq for EntrySlice<'_> {
+impl cmp::PartialEq for EntrySlice {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == cmp::Ordering::Equal
     }
 }
-impl cmp::Eq for EntrySlice<'_> {}
+impl cmp::Eq for EntrySlice {}
 
-impl cmp::PartialOrd for EntrySlice<'_> {
+impl cmp::PartialOrd for EntrySlice {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl cmp::Ord for EntrySlice<'_> {
+impl cmp::Ord for EntrySlice {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         let ((head1, mut tail1), (head2, mut tail2)) =
             match (self.0.split_first(), other.0.split_first()) {
@@ -113,22 +116,22 @@ impl cmp::Ord for EntrySlice<'_> {
             (Entry::List(o1), Entry::List(o2)) => {
                 (list1, tail1) = tail1.split_at(*o1 as usize);
                 (list2, tail2) = tail2.split_at(*o2 as usize);
-                EntrySlice::cmp(&EntrySlice(list1), &EntrySlice(list2))
+                EntrySlice::cmp(EntrySlice::wrap_ref(list1), EntrySlice::wrap_ref(list2))
             }
             (Entry::List(o1), e2 @ Entry::Value(_)) => {
                 (list1, tail1) = tail1.split_at(*o1 as usize);
                 let list2 = &[*e2];
-                EntrySlice::cmp(&EntrySlice(list1), &EntrySlice(list2))
+                EntrySlice::cmp(EntrySlice::wrap_ref(list1), EntrySlice::wrap_ref(list2))
             }
             (e1 @ Entry::Value(_), Entry::List(o2)) => {
                 let list1 = &[*e1];
                 (list2, tail2) = tail2.split_at(*o2 as usize);
-                EntrySlice::cmp(&EntrySlice(list1), &EntrySlice(list2))
+                EntrySlice::cmp(EntrySlice::wrap_ref(list1), EntrySlice::wrap_ref(list2))
             }
         };
 
         // finally, continue comparing the tails
-        cmp.then_with(|| Self::cmp(&Self(tail1), &Self(tail2)))
+        cmp.then_with(|| Self::cmp(Self::wrap_ref(tail1), Self::wrap_ref(tail2)))
     }
 }
 
@@ -166,8 +169,8 @@ impl ChallengeParser for Solution {
             ranges.push(right.clone());
 
             // construct our entryslice helpers
-            let left = EntrySlice(&arena[left]);
-            let right = EntrySlice(&arena[right]);
+            let left = EntrySlice::wrap_ref(&arena[left]);
+            let right = EntrySlice::wrap_ref(&arena[right]);
 
             // println!("bar {left:?} <=> {right:?}");
 
@@ -176,15 +179,14 @@ impl ChallengeParser for Solution {
             }
         }
 
-        let by_key = |x: &std::ops::Range<usize>| EntrySlice(&arena[x.clone()]);
+        let by_key = |x: &std::ops::Range<usize>| EntrySlice::wrap_ref(&arena[x.clone()]);
         ranges.sort_unstable_by_key(by_key);
 
-        // we remove the list head from the original input lines, so this matches
-        let two = [Entry::List(1), Entry::Value(2)];
-        let six = [Entry::List(1), Entry::Value(6)];
+        let two = [Entry::Value(2)];
+        let six = [Entry::Value(6)];
 
-        let (Ok(x) | Err(x)) = ranges.binary_search_by_key(&EntrySlice(&two), by_key);
-        let (Ok(y) | Err(y)) = ranges.binary_search_by_key(&EntrySlice(&six), by_key);
+        let (Ok(x) | Err(x)) = ranges.binary_search_by_key(&EntrySlice::wrap_ref(&two), by_key);
+        let (Ok(y) | Err(y)) = ranges.binary_search_by_key(&EntrySlice::wrap_ref(&six), by_key);
 
         Ok(("", Self(sum, (x + 1) * (y + 2))))
         // Ok(("", Self(0, 0)))
