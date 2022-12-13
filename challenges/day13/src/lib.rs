@@ -1,4 +1,4 @@
-use std::{cmp, fmt};
+use std::{cmp, fmt, ops::Range};
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
@@ -6,7 +6,7 @@ use nom::IResult;
 #[derive(Clone, Copy, Debug)]
 enum Entry {
     /// entries up to this index ahead is a list
-    List(u16),
+    List(u8),
     /// a raw value
     Value(u8),
 }
@@ -16,26 +16,10 @@ impl Entry {
         let (mut first, mut input) = input.split_first().unwrap();
         if *first == b'[' {
             let prefix_index = arena.len();
+            let range;
             arena.push(Entry::List(0));
-
-            // skip empty lists
-            if *input.first().unwrap() != b']' {
-                loop {
-                    let i = Entry::parse(arena, input);
-
-                    // check for `,` or `]`
-                    (first, input) = i.split_first().unwrap();
-                    if *first == b']' {
-                        break;
-                    }
-                }
-            } else {
-                (_, input) = input.split_first().unwrap();
-            }
-
-            let offset = (arena.len() - prefix_index) as u16;
-            arena[prefix_index] = Entry::List(offset);
-            input
+            (input, range) = Entry::parse_list(arena, input);
+            arena[prefix_index] = Entry::List(range.len() as u8);
         } else {
             let mut n = *first - b'0';
             while let Some(b'0'..=b'9') = input.first() {
@@ -44,8 +28,32 @@ impl Entry {
                 n += *first - b'0';
             }
             arena.push(Entry::Value(n));
-            input
         }
+        input
+    }
+
+    fn parse_list(
+        arena: &mut Vec<Entry>,
+        mut input: &'static [u8],
+    ) -> (&'static [u8], Range<usize>) {
+        let start = arena.len();
+        // skip empty lists
+        if *input.first().unwrap() != b']' {
+            loop {
+                let i = Entry::parse(arena, input);
+
+                // check for `,` or `]`
+                let next;
+                (next, input) = i.split_first().unwrap();
+                if *next == b']' {
+                    break;
+                }
+            }
+        } else {
+            (_, input) = input.split_first().unwrap();
+        }
+
+        (input, start..arena.len())
     }
 }
 
@@ -62,9 +70,9 @@ impl fmt::Debug for EntrySlice<'_> {
                     list.entry(e);
                     slice = rest
                 }
-                [Entry::List(o), ..] => {
-                    let (entries, rest) = slice.split_at(*o as usize);
-                    list.entry(&EntrySlice(&entries[1..]));
+                [Entry::List(o), rest @ ..] => {
+                    let (entries, rest) = rest.split_at(*o as usize);
+                    list.entry(&EntrySlice(entries));
                     slice = rest
                 }
                 [] => return list.finish(),
@@ -96,26 +104,27 @@ impl cmp::Ord for EntrySlice<'_> {
                 (Some(l), Some(r)) => (l, r),
             };
 
+        let list1;
+        let list2;
+
         // match the heads of the list. If the head is itself a list, slice up accordingly
         let cmp = match (head1, head2) {
+            (Entry::Value(a), Entry::Value(b)) => a.cmp(b),
             (Entry::List(o1), Entry::List(o2)) => {
-                let list1;
-                let list2;
-                (list1, tail1) = self.0.split_at(*o1 as usize);
-                (list2, tail2) = other.0.split_at(*o2 as usize);
-                EntrySlice::cmp(&EntrySlice(&list1[1..]), &EntrySlice(&list2[1..]))
+                (list1, tail1) = tail1.split_at(*o1 as usize);
+                (list2, tail2) = tail2.split_at(*o2 as usize);
+                EntrySlice::cmp(&EntrySlice(list1), &EntrySlice(list2))
             }
             (Entry::List(o1), e2 @ Entry::Value(_)) => {
-                let list1;
-                (list1, tail1) = self.0.split_at(*o1 as usize);
-                EntrySlice::cmp(&EntrySlice(&list1[1..]), &EntrySlice(&[*e2]))
+                (list1, tail1) = tail1.split_at(*o1 as usize);
+                let list2 = &[*e2];
+                EntrySlice::cmp(&EntrySlice(list1), &EntrySlice(list2))
             }
             (e1 @ Entry::Value(_), Entry::List(o2)) => {
-                let list2;
-                (list2, tail2) = other.0.split_at(*o2 as usize);
-                EntrySlice::cmp(&EntrySlice(&[*e1]), &EntrySlice(&list2[1..]))
+                let list1 = &[*e1];
+                (list2, tail2) = tail2.split_at(*o2 as usize);
+                EntrySlice::cmp(&EntrySlice(list1), &EntrySlice(list2))
             }
-            (Entry::Value(a), Entry::Value(b)) => a.cmp(b),
         };
 
         // finally, continue comparing the tails
@@ -142,20 +151,15 @@ impl ChallengeParser for Solution {
             if i > 1 {
                 input = &input[1..]; // trim newline
             }
+            input = &input[1..]; // trim `[`
 
-            let left = arena.len();
-            input = Entry::parse(&mut arena, input);
+            let left;
+            let right;
 
+            (input, left) = Entry::parse_list(&mut arena, input);
+            input = &input[2..]; // trim `\n[`
+            (input, right) = Entry::parse_list(&mut arena, input);
             input = &input[1..]; // trim `\n`
-
-            let right = arena.len();
-            input = Entry::parse(&mut arena, input);
-
-            input = &input[1..]; // trim `\n`
-
-            // determine ranges in arena
-            let left = left + 1..right;
-            let right = right + 1..arena.len();
 
             // save the ranges
             ranges.push(left.clone());
@@ -165,7 +169,7 @@ impl ChallengeParser for Solution {
             let left = EntrySlice(&arena[left]);
             let right = EntrySlice(&arena[right]);
 
-            // println!("{left:?} <=> {right:?}");
+            // println!("bar {left:?} <=> {right:?}");
 
             if left < right {
                 sum += i;
@@ -176,8 +180,8 @@ impl ChallengeParser for Solution {
         ranges.sort_unstable_by_key(by_key);
 
         // we remove the list head from the original input lines, so this matches
-        let two = [Entry::List(2), Entry::Value(2)];
-        let six = [Entry::List(2), Entry::Value(6)];
+        let two = [Entry::List(1), Entry::Value(2)];
+        let six = [Entry::List(1), Entry::Value(6)];
 
         let (Ok(x) | Err(x)) = ranges.binary_search_by_key(&EntrySlice(&two), by_key);
         let (Ok(y) | Err(y)) = ranges.binary_search_by_key(&EntrySlice(&six), by_key);
