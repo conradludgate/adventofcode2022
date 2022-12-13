@@ -11,28 +11,6 @@ enum Entry {
     Value(u8),
 }
 
-impl fmt::Debug for EntrySlice<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut list = f.debug_list();
-        let mut slice = self.0;
-
-        loop {
-            match slice {
-                [Entry::Value(e), rest @ ..] => {
-                    list.entry(e);
-                    slice = rest
-                }
-                [Entry::List(o), ..] => {
-                    let (entries, rest) = slice.split_at(*o as usize);
-                    list.entry(&EntrySlice(&entries[1..]));
-                    slice = rest
-                }
-                [] => return list.finish(),
-            }
-        }
-    }
-}
-
 impl Entry {
     fn parse(arena: &mut Vec<Entry>, input: &'static [u8]) -> &'static [u8] {
         let (mut first, mut input) = input.split_first().unwrap();
@@ -72,6 +50,28 @@ impl Entry {
 }
 
 struct EntrySlice<'a>(&'a [Entry]);
+
+impl fmt::Debug for EntrySlice<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut list = f.debug_list();
+        let mut slice = self.0;
+
+        loop {
+            match slice {
+                [Entry::Value(e), rest @ ..] => {
+                    list.entry(e);
+                    slice = rest
+                }
+                [Entry::List(o), ..] => {
+                    let (entries, rest) = slice.split_at(*o as usize);
+                    list.entry(&EntrySlice(&entries[1..]));
+                    slice = rest
+                }
+                [] => return list.finish(),
+            }
+        }
+    }
+}
 
 impl cmp::PartialEq for EntrySlice<'_> {
     fn eq(&self, other: &Self) -> bool {
@@ -130,26 +130,28 @@ impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut sum = 0;
 
-        let mut arena = Vec::new();
-        let mut ranges = Vec::new();
+        let mut arena = Vec::with_capacity(input.len());
+        let mut ranges = Vec::with_capacity(input.len() / 50);
 
         let mut input = input.as_bytes();
 
         for i in 1.. {
-            if input.len() < 2 {
+            if input.is_empty() {
                 break;
             }
             if i > 1 {
-                input = &input[2..]; // trim newlines
+                input = &input[1..]; // trim newline
             }
 
             let left = arena.len();
             input = Entry::parse(&mut arena, input);
 
-            input = &input[1..]; // trim newline
+            input = &input[1..]; // trim `\n`
 
             let right = arena.len();
             input = Entry::parse(&mut arena, input);
+
+            input = &input[1..]; // trim `\n`
 
             // determine ranges in arena
             let left = left + 1..right;
@@ -163,7 +165,7 @@ impl ChallengeParser for Solution {
             let left = EntrySlice(&arena[left]);
             let right = EntrySlice(&arena[right]);
 
-            println!("{left:?} <=> {right:?}");
+            // println!("{left:?} <=> {right:?}");
 
             if left < right {
                 sum += i;
