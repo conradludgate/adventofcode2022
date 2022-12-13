@@ -87,37 +87,43 @@ impl ChallengeParser for Solution {
         let mut sum = 0;
 
         let arena = Arena::new();
+        let mut lists = vec![];
+        let mut input = input.as_bytes();
 
-        let two = Entry::parse(&arena, b"[[2]]").1;
-        let six = Entry::parse(&arena, b"[[6]]").1;
+        for i in 1.. {
+            if input.len() < 2 {
+                break;
+            }
+            if i > 1 {
+                input = &input[2..]; // trim newlines
+            }
 
-        let mut lists = vec![two, six];
+            let left;
+            let right;
 
-        for (i, pair) in input.split("\n\n").enumerate() {
-            let i = i + 1;
+            (input, left) = Entry::parse(&arena, input);
+            input = &input[1..]; // trim newline
+            (input, right) = Entry::parse(&arena, input);
 
-            let (left, right) = pair.split_once('\n').unwrap();
-
-            let left1 = Entry::parse(&arena, left.as_bytes()).1;
-            let right1 = Entry::parse(&arena, right.as_bytes()).1;
-
-            if left1 < right1 {
+            if left < right {
                 sum += i;
-                lists.push(left1);
-                lists.push(right1);
+                lists.push(left);
+                lists.push(right);
             } else {
-                lists.push(right1);
-                lists.push(left1);
+                lists.push(right);
+                lists.push(left);
             }
         }
 
         lists.sort();
 
-        let mut iter = lists.into_iter();
-        let right = iter.rposition(|p| p == six).unwrap();
-        let left = iter.position(|p| p == two).unwrap();
+        let two = Entry::parse(&arena, b"[[2]]").1;
+        let six = Entry::parse(&arena, b"[[6]]").1;
 
-        Ok(("", Self(sum, (left + 1) * (right + 1))))
+        let (Ok(x) | Err(x)) = lists.binary_search(&two);
+        let (Ok(y) | Err(y)) = lists.binary_search(&six);
+
+        Ok(("", Self(sum, (x + 1) * (y + 2))))
     }
 }
 
