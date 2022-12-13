@@ -1,5 +1,5 @@
 [package]
-name = "day12"
+name = "day13"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,7 +9,6 @@ edition = "2021"
 nom = "7.1"
 parsers = { path = "../../parsers" }
 aoc = { path = "../../aoc" }
-pathfinding = "4.0.1"
 
 [dev-dependencies]
 criterion = "0.4"
