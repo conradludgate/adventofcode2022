@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use crate::{gen::separated_list1, MutRef};
+use next_gen::gen_iter;
 use nom::{
     error::{ErrorKind, ParseError},
     Err, InputLength, Parser,
@@ -19,36 +21,14 @@ where
     E: ParseError<I>,
     C: Default + Extend<O>,
 {
-    fn parse(&mut self, mut input: I) -> nom::IResult<I, C, E> {
+    fn parse(&mut self, input: I) -> nom::IResult<I, C, E> {
         let mut res = C::default();
-
-        // Parse the first element
-        let (i1, n) = self.f.parse(input)?;
-        res.extend(Some(n));
-        input = i1;
-
-        loop {
-            let len = input.input_len();
-            match self.g.parse(input.clone()) {
-                Err(Err::Error(_)) => return Ok((input, res)),
-                Err(e) => return Err(e),
-                Ok((i1, _)) => {
-                    // infinite loop check: the parser must always consume
-                    if i1.input_len() == len {
-                        return Err(Err::Error(E::from_error_kind(i1, ErrorKind::SeparatedList)));
-                    }
-
-                    match self.f.parse(i1.clone()) {
-                        Err(Err::Error(_)) => return Ok((input, res)),
-                        Err(e) => return Err(e),
-                        Ok((i2, o)) => {
-                            res.extend(Some(o));
-                            input = i2;
-                        }
-                    }
-                }
+        let input = gen_iter! {
+            for v in separated_list1(input, MutRef(&mut self.f), MutRef(&mut self.g)) {
+                res.extend(Some(v));
             }
-        }
+        }?;
+        Ok((input, res))
     }
 }
 

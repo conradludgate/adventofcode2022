@@ -11,6 +11,7 @@ use nom::{
 
 mod ext;
 pub use ext::*;
+pub mod gen;
 
 pub fn number<O>(input: &str) -> IResult<&str, O>
 where

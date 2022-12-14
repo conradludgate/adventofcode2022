@@ -158,3 +158,11 @@ pub trait ParserExt<I, O, E>: Parser<I, O, E> {
         }
     }
 }
+
+pub struct MutRef<'a, P>(pub &'a mut P);
+
+impl<'a, P: Parser<I, O, E>, I, O, E> Parser<I, O, E> for MutRef<'a, P> {
+    fn parse(&mut self, input: I) -> IResult<I, O, E> {
+        P::parse(self.0, input)
+    }
+}
