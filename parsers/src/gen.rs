@@ -5,11 +5,7 @@ use nom::{
 };
 
 #[generator(yield(O))]
-pub fn separated_list1<I, O, O2, F, G, E>(
-    mut input: I,
-    mut f: F,
-    mut g: G,
-) -> Result<I, Err<E>>
+pub fn separated_list1<I, O, O2, F, G, E>(mut input: I, mut f: F, mut g: G) -> Result<I, Err<E>>
 where
     I: Clone + InputLength,
     F: Parser<I, O, E>,

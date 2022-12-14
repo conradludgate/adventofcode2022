@@ -1,4 +1,4 @@
-#![feature(array_windows)]
+#![feature(array_windows, vec_push_within_capacity)]
 
 use core::fmt;
 use std::ops::Range;
@@ -64,7 +64,7 @@ impl Challenge for Solution {
     fn part_two(self) -> Self::Output2 {
         let y = Grid::bounds(&self.0).1 + 2;
         let mut grid = Grid::draw_rocks(500 - y..500 + y, y, &self.0, true);
-        grid.fill() + 1
+        grid.fill()
     }
 }
 
@@ -126,45 +126,54 @@ impl Grid {
     }
 
     fn fill(&mut self) -> usize {
+        let mut stack = Vec::with_capacity(self.y as usize);
+
         let Range { start, end } = self.x;
         let width = end - start;
-        let mut i = 0;
-        'outer: loop {
-            let mut x = 500 - start;
-            let mut y = 0;
-            loop {
-                if y + 1 == self.y {
-                    // fallen off grid
-                    break 'outer;
-                }
-                let k = ((y + 1) * width + x) as usize;
-                if self.grid[k] == GridSpot::Air {
-                    y += 1;
-                } else if x == 0 {
-                    // fallen off grid
-                    break 'outer;
-                } else if self.grid[k - 1] == GridSpot::Air {
-                    y += 1;
-                    x -= 1;
-                } else if x + 1 == end {
-                    // fallen off grid
-                    break 'outer;
-                } else if self.grid[k + 1] == GridSpot::Air {
-                    y += 1;
-                    x += 1;
-                } else {
-                    if x == 500 - start && y == 0 {
-                        break 'outer;
-                    }
-                    // settled
-                    self.grid[(y * width + x) as usize] = GridSpot::Sand;
-                    break;
+        let mut settled = 0;
+
+        let mut x = 500 - start;
+        let mut y = 0;
+
+        loop {
+            if y + 1 == self.y {
+                // fallen off grid
+                break;
+            }
+            // k is the index of the point below our current x,y coordinate
+            let k = ((y + 1) * width + x) as usize;
+
+            (x, y) = if self.grid[k] == GridSpot::Air {
+                // we can move directly down
+                let _ = stack.push_within_capacity((x, y));
+                (x, y + 1)
+            } else if x == 0 {
+                // we can't move down, so we fall left off grid
+                break;
+            } else if self.grid[k - 1] == GridSpot::Air {
+                // we can't move down, so we fall left
+                let _ = stack.push_within_capacity((x, y));
+                (x - 1, y + 1)
+            } else if x + 1 == end {
+                // we can't move down or left, so we fall right off grid
+                break;
+            } else if self.grid[k + 1] == GridSpot::Air {
+                // we can't move down or left, so we fall right
+                let _ = stack.push_within_capacity((x, y));
+                (x + 1, y + 1)
+            } else {
+                // we can't move anywhere.
+                settled += 1;
+                self.grid[(y * width + x) as usize] = GridSpot::Sand;
+
+                match stack.pop() {
+                    Some(p) => p,
+                    // if nothing left in the stack, we must be at the source point of the sand.
+                    None => break,
                 }
             }
-
-            i += 1;
         }
-        i
+        settled
     }
 }
 impl fmt::Display for Grid {
