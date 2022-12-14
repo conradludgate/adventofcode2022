@@ -1,6 +1,7 @@
 #![feature(array_windows)]
 
 use core::fmt;
+use std::ops::Range;
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use next_gen::gen_iter;
@@ -54,77 +55,110 @@ impl Challenge for Solution {
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
+        let (x, y) = Grid::bounds(&self.0);
+        let mut grid = Grid::draw_rocks(x, y, &self.0, false);
+        grid.fill()
+    }
+
+    type Output2 = usize;
+    fn part_two(self) -> Self::Output2 {
+        let y = Grid::bounds(&self.0).1 + 2;
+        let mut grid = Grid::draw_rocks(500 - y..500 + y, y, &self.0, true);
+        grid.fill() + 1
+    }
+}
+
+struct Grid {
+    grid: Vec<GridSpot>,
+    x: Range<u16>,
+    y: u16,
+}
+
+impl Grid {
+    fn bounds(lines: &[LineSegment]) -> (Range<u16>, u16) {
         let mut xstart = 500;
         let mut xend = 501;
         let mut yend = 1;
 
-        for &i in &self.0 {
+        for &i in lines {
             if let LineSegment::Point(Point(x, y)) = i {
                 xstart = u16::min(x, xstart);
                 xend = u16::max(x + 1, xend);
-                // yrange.start = u16::min(y, yrange.start);
                 yend = u16::max(y + 1, yend);
             }
         }
-        let width = xend - xstart;
+        (xstart..xend, yend)
+    }
 
-        // dbg!(xstart..xend, yend);
+    fn draw_rocks(x: Range<u16>, y: u16, lines: &[LineSegment], bottom: bool) -> Self {
+        let width = x.len() as u16;
+        let mut grid = vec![GridSpot::Air; (y * width) as usize];
+        let xstart = x.start;
 
-        let mut grid = vec![GridSpot::Air; (width * yend) as usize];
-
-        for &[a, b] in self.0.array_windows() {
+        for &[a, b] in lines.array_windows() {
             let (a, b) = match (a, b) {
                 (LineSegment::Point(a), LineSegment::Point(b)) => (a, b),
                 _ => continue,
             };
 
             if a.0 == b.0 {
-                let x = a.0 - xstart;
+                let x = a.0;
                 let y = if a.1 > b.1 { b.1..=a.1 } else { a.1..=b.1 };
                 for y in y {
-                    grid[(y * width + x) as usize] = GridSpot::Rock;
+                    grid[(y * width + x - xstart) as usize] = GridSpot::Rock;
                 }
             } else if a.1 == b.1 {
                 let y = a.1;
-                let x = if a.0 > b.0 {
-                    (b.0 - xstart)..=(a.0 - xstart)
-                } else {
-                    (a.0 - xstart)..=(b.0 - xstart)
-                };
+                let x = if a.0 > b.0 { b.0..=a.0 } else { a.0..=b.0 };
                 for x in x {
-                    grid[(y * width + x) as usize] = GridSpot::Rock;
+                    grid[(y * width + x - xstart) as usize] = GridSpot::Rock;
                 }
             }
         }
 
+        if bottom {
+            for x in 0..width {
+                grid[((y - 1) * width + x) as usize] = GridSpot::Rock;
+            }
+        }
+
+        Self { grid, x, y }
+    }
+
+    fn fill(&mut self) -> usize {
+        let Range { start, end } = self.x;
+        let width = end - start;
         let mut i = 0;
         'outer: loop {
-            let mut x = 500 - xstart;
+            let mut x = 500 - start;
             let mut y = 0;
             loop {
-                if y + 1 == yend {
+                if y + 1 == self.y {
                     // fallen off grid
                     break 'outer;
                 }
                 let k = ((y + 1) * width + x) as usize;
-                if grid[k] == GridSpot::Air {
+                if self.grid[k] == GridSpot::Air {
                     y += 1;
                 } else if x == 0 {
                     // fallen off grid
                     break 'outer;
-                } else if grid[k - 1] == GridSpot::Air {
+                } else if self.grid[k - 1] == GridSpot::Air {
                     y += 1;
                     x -= 1;
-                } else if x + 1 == xend {
+                } else if x + 1 == end {
                     // fallen off grid
                     break 'outer;
-                } else if grid[k + 1] == GridSpot::Air {
+                } else if self.grid[k + 1] == GridSpot::Air {
                     y += 1;
                     x += 1;
                 } else {
+                    if x == 500 - start && y == 0 {
+                        break 'outer;
+                    }
                     // settled
-                    grid[(y * width + x) as usize] = GridSpot::Sand;
-                    break
+                    self.grid[(y * width + x) as usize] = GridSpot::Sand;
+                    break;
                 }
             }
 
@@ -132,90 +166,16 @@ impl Challenge for Solution {
         }
         i
     }
-
-    type Output2 = usize;
-    fn part_two(self) -> Self::Output2 {
-        // let mut xstart = 500;
-        // let mut xend = 501;
-        let mut yend = 1;
-
-        for &i in &self.0 {
-            if let LineSegment::Point(Point(_, y)) = i {
-                // xstart = u16::min(x, xstart);
-                // xend = u16::max(x + 1, xend);
-                // yrange.start = u16::min(y, yrange.start);
-                yend = u16::max(y + 1, yend);
+}
+impl fmt::Display for Grid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for row in self.grid.chunks(self.x.len()) {
+            for spot in row {
+                spot.fmt(f)?;
             }
+            f.write_str("\n")?;
         }
-        let xstart = 500 - yend - 1;
-        let xend = 500 + yend + 2;
-        yend += 2;
-
-        let width = xend - xstart;
-        // dbg!(xstart..xend, yend);
-
-        let mut grid = vec![GridSpot::Air; (width * yend) as usize];
-
-        for &[a, b] in self.0.array_windows() {
-            let (a, b) = match (a, b) {
-                (LineSegment::Point(a), LineSegment::Point(b)) => (a, b),
-                _ => continue,
-            };
-
-            if a.0 == b.0 {
-                let x = a.0 - xstart;
-                let y = if a.1 > b.1 { b.1..=a.1 } else { a.1..=b.1 };
-                for y in y {
-                    grid[(y * width + x) as usize] = GridSpot::Rock;
-                }
-            } else if a.1 == b.1 {
-                let y = a.1;
-                let x = if a.0 > b.0 {
-                    (b.0 - xstart)..=(a.0 - xstart)
-                } else {
-                    (a.0 - xstart)..=(b.0 - xstart)
-                };
-                for x in x {
-                    grid[(y * width + x) as usize] = GridSpot::Rock;
-                }
-            }
-        }
-        for x in 0..width {
-            grid[((yend - 1) * width + x) as usize] = GridSpot::Rock;
-        }
-
-        let mut i = 0;
-        'outer: loop {
-            let mut x = 500 - xstart;
-            let mut y = 0;
-            loop {
-                if y + 1 == yend {
-                    // fallen off grid
-                    break 'outer;
-                }
-                let k = ((y + 1) * width + x) as usize;
-                if grid[k] == GridSpot::Air {
-                    y += 1;
-                } else if grid[k - 1] == GridSpot::Air {
-                    y += 1;
-                    x -= 1;
-                } else if grid[k + 1] == GridSpot::Air {
-                    y += 1;
-                    x += 1;
-                } else {
-                    if x == 500 - xstart && y == 0 {
-                        break 'outer;
-                    }
-                    // settled
-                    grid[(y * width + x) as usize] = GridSpot::Sand;
-                    break
-                }
-            }
-
-            i += 1;
-        }
-
-        i + 1
+        Ok(())
     }
 }
 
