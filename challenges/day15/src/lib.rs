@@ -1,8 +1,24 @@
-use std::collections::HashSet;
+use std::ops::Range;
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 
+/// ```ignore
+/// let line = "Sensor at x=2, y=18: closest beacon is at x=-2, y=15";
+/// let segments = ["Sensor at x=",", y=",": closest beacon is at x=",", y="];
+/// assert_eq!(split_many(line, segments), Some(["2","18","-2","15"]));
+/// ```
+fn split_many<'a, const N: usize>(
+    mut s: &'a str,
+    mut delimiters: [&'a str; N],
+) -> Option<[&'a str; N]> {
+    s = s.strip_prefix(delimiters[0])?;
+    for i in 1..N {
+        (delimiters[i - 1], s) = s.split_once(delimiters[i])?;
+    }
+    delimiters[N - 1] = s;
+    Some(delimiters)
+}
 #[derive(Debug, PartialEq, Clone)]
 struct Positions {
     x1: i32,
@@ -20,10 +36,8 @@ impl ChallengeParser for Solution {
             if line.is_empty() {
                 continue;
             }
-            let line = line.strip_prefix("Sensor at x=").unwrap();
-            let (x1, line) = line.split_once(", y=").unwrap();
-            let (y1, line) = line.split_once(": closest beacon is at x=").unwrap();
-            let (x2, y2) = line.split_once(", y=").unwrap();
+            let segments = ["Sensor at x=", ", y=", ": closest beacon is at x=", ", y="];
+            let [x1, y1, x2, y2] = split_many(line, segments).unwrap();
             positions.push(Positions {
                 x1: x1.parse().unwrap(),
                 y1: y1.parse().unwrap(),
@@ -45,44 +59,91 @@ impl Challenge for Solution {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        0
+        self.part_two(4000000)
     }
 }
 
 impl Solution {
     fn part_one(self, row: i32) -> usize {
-        let mut not_beacons = HashSet::new();
+        let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
+
         for pos in &self.0 {
             let dist = pos.x1.abs_diff(pos.x2) + pos.y1.abs_diff(pos.y2);
             let offset = pos.y1.abs_diff(row);
             if offset > dist {
                 continue;
             }
-            let d = (dist-offset) as i32;
-            for i in pos.x1-d..=pos.x1+d {
-                not_beacons.insert(i);
+
+            let d = (dist - offset) as i32;
+            let range = (pos.x1 - d)..(pos.x1 + d);
+
+            match ranges.binary_search_by_key(&range.end, |r| r.end) {
+                Ok(i) => {
+                    ranges[i].start = i32::min(ranges[i].start, range.start);
+                }
+                Err(i) => ranges.insert(i, range),
             }
 
-            // not_beacons += 2 * (dist - offset);
-            // if pos.y2 != row {
-            //     not_beacons += 1;
-            // }
-        }
-
-        for pos in self.0 {
-            if pos.y2 == row {
-                not_beacons.remove(&pos.x2);
+            let mut i = 1;
+            while i < ranges.len() {
+                if ranges[i - 1].end >= ranges[i].start {
+                    ranges[i - 1].start = i32::min(ranges[i].start, ranges[i - 1].start);
+                    ranges[i - 1].end = ranges[i].end;
+                    ranges.remove(i);
+                } else {
+                    i += 1;
+                }
             }
         }
 
-        not_beacons.len()
+        ranges.into_iter().map(|r| r.len()).sum()
+    }
+
+    fn part_two(self, max: i32) -> usize {
+        let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
+        for row in 0..=max {
+            ranges.clear();
+            for pos in &self.0 {
+                let dist = pos.x1.abs_diff(pos.x2) + pos.y1.abs_diff(pos.y2);
+                let offset = pos.y1.abs_diff(row);
+                if offset > dist {
+                    continue;
+                }
+                let d = (dist - offset) as i32;
+                let range = (pos.x1 - d).max(0)..(pos.x1 + d + 1).min(max + 1);
+
+                match ranges.binary_search_by_key(&range.end, |r| r.end) {
+                    Ok(i) => {
+                        ranges[i].start = i32::min(ranges[i].start, range.start);
+                    }
+                    Err(i) => ranges.insert(i, range),
+                }
+                let mut i = 1;
+                while i < ranges.len() {
+                    if ranges[i - 1].end >= ranges[i].start {
+                        ranges[i - 1].start = i32::min(ranges[i].start, ranges[i - 1].start);
+                        ranges[i - 1].end = ranges[i].end;
+                        ranges.remove(i);
+                        i = 1;
+                    } else {
+                        i += 1;
+                    }
+                }
+            }
+
+            if let [a, _] = ranges.as_slice() {
+                let col = a.end;
+                return (row as usize) + (col as usize) * 4000000;
+            }
+        }
+        0
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Solution;
-    use aoc::{Challenge, Parser};
+    use aoc::Parser;
 
     const INPUT: &str = "Sensor at x=2, y=18: closest beacon is at x=-2, y=15
 Sensor at x=9, y=16: closest beacon is at x=10, y=16
@@ -115,6 +176,6 @@ Sensor at x=20, y=1: closest beacon is at x=15, y=3
     #[test]
     fn part_two() {
         let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        assert_eq!(output.part_two(20), 56000011);
     }
 }
