@@ -20,18 +20,21 @@ where
         let mut res = ArrayVec::new();
 
         // Parse the first element
-        let (i1, n) = self.f.parse(input)?;
+        let mut n;
+        (input, n) = self.f.parse(input)?;
         res.push(n);
-        input = i1;
 
-        for _ in 1..N {
-            input = self.g.parse(input)?.0;
-            let (i1, n) = self.f.parse(input)?;
-            res.push(n);
-            input = i1;
+        loop {
+            match res.into_inner() {
+                Ok(res) => break Ok((input, res)),
+                Err(r) => {
+                    res = r;
+                    (input, _) = self.g.parse(input)?;
+                    (input, n) = self.f.parse(input)?;
+                    res.push(n);
+                }
+            }
         }
-
-        Ok((input, res.into_inner().map_err(drop).unwrap()))
     }
 }
 
