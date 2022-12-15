@@ -29,9 +29,9 @@ struct Positions {
     y2: i32,
 }
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(Vec<Positions>);
+pub struct Solution<const N: i32>(Vec<Positions>);
 
-impl ChallengeParser for Solution {
+impl<const N: i32> ChallengeParser for Solution<N> {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
         let mut positions = Vec::with_capacity(input.len() / 32);
         for line in input.lines() {
@@ -51,21 +51,35 @@ impl ChallengeParser for Solution {
     }
 }
 
-impl Challenge for Solution {
+impl<const N: i32> Challenge for Solution<N> {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
-        self.part_one(2000000)
+        let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
+
+        self.build_range(N / 2, &mut ranges, i32::MIN..i32::MAX)
+            .iter()
+            .map(|r| r.len())
+            .sum::<usize>()
+            - 1 // not sure what that -1 is about tbh
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        self.part_two(4000000)
+        let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
+        for row in 0..=N {
+            for [a, b] in self.build_range(row, &mut ranges, 0..N + 1).array_windows() {
+                if a.end < b.start {
+                    return (row as usize) + (a.end as usize) * 4000000;
+                }
+            }
+        }
+        0
     }
 }
 
-impl Solution {
+impl<const N: i32> Solution<N> {
     fn build_range<'a>(
         &self,
         row: i32,
@@ -108,37 +122,12 @@ impl Solution {
         }
         ranges.as_slice()
     }
-
-    fn part_one(self, row: i32) -> usize {
-        let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
-
-        self.build_range(row, &mut ranges, i32::MIN..i32::MAX)
-            .iter()
-            .map(|r| r.len())
-            .sum::<usize>()
-            - 1 // not sure what that -1 is about tbh
-    }
-
-    fn part_two(self, max: i32) -> usize {
-        let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
-        for row in 0..=max {
-            for [a, b] in self
-                .build_range(row, &mut ranges, 0..max + 1)
-                .array_windows()
-            {
-                if a.end < b.start {
-                    return (row as usize) + (a.end as usize) * 4000000;
-                }
-            }
-        }
-        0
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Solution;
-    use aoc::Parser;
+    use aoc::{Challenge, Parser};
 
     const INPUT: &str = "Sensor at x=2, y=18: closest beacon is at x=-2, y=15
 Sensor at x=9, y=16: closest beacon is at x=10, y=16
@@ -158,19 +147,19 @@ Sensor at x=20, y=1: closest beacon is at x=15, y=3
 
     #[test]
     fn parse() {
-        let output = Solution::parse(INPUT).unwrap().1;
+        let output = Solution::<20>::parse(INPUT).unwrap().1;
         println!("{output:?}");
     }
 
     #[test]
     fn part_one() {
-        let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_one(10), 26);
+        let output = Solution::<20>::parse(INPUT).unwrap().1;
+        assert_eq!(output.part_one(), 26);
     }
 
     #[test]
     fn part_two() {
-        let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(20), 56000011);
+        let output = Solution::<20>::parse(INPUT).unwrap().1;
+        assert_eq!(output.part_two(), 56000011);
     }
 }
