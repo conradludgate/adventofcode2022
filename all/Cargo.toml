@@ -21,7 +21,7 @@ day11 = { path = "../challenges/day11" }
 day12 = { path = "../challenges/day12" }
 day13 = { path = "../challenges/day13" }
 day14 = { path = "../challenges/day14" }
-# day15 = { path = "../challenges/day15" }
+day15 = { path = "../challenges/day15" }
 # day16 = { path = "../challenges/day16" }
 # day17 = { path = "../challenges/day17" }
 # day18 = { path = "../challenges/day18" }

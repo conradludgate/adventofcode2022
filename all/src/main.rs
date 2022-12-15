@@ -16,7 +16,7 @@ static DAY11: &str = include_str!("../../challenges/day11/input.txt");
 static DAY12: &str = include_str!("../../challenges/day12/input.txt");
 static DAY13: &str = include_str!("../../challenges/day13/input.txt");
 static DAY14: &str = include_str!("../../challenges/day14/input.txt");
-// static DAY15: &str = include_str!("../../challenges/day15/input.txt");
+static DAY15: &str = include_str!("../../challenges/day15/input.txt");
 // static DAY16: &str = include_str!("../../challenges/day16/input.txt");
 // static DAY17: &str = include_str!("../../challenges/day17/input.txt");
 // static DAY18: &str = include_str!("../../challenges/day18/input.txt");
@@ -45,7 +45,7 @@ fn main() {
     results.push(check::<day12::Solution>(DAY12));
     results.push(check::<day13::Solution>(DAY13));
     results.push(check::<day14::Solution>(DAY14));
-    // results.push(check::<day15::Solution>(DAY15));
+    results.push(check::<day15::Solution>(DAY15));
     // results.push(check::<day16::Solution>(DAY16));
     // results.push(check::<day17::Solution>(DAY17));
     // results.push(check::<day18::Solution>(DAY18));

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{gen::separated_list1, MutRef};
+use crate::gen::separated_list1_inner;
 use next_gen::gen_iter;
 use nom::{
     error::{ErrorKind, ParseError},
@@ -24,7 +24,7 @@ where
     fn parse(&mut self, input: I) -> nom::IResult<I, C, E> {
         let mut res = C::default();
         let input = gen_iter! {
-            for v in separated_list1(input, MutRef(&mut self.f), MutRef(&mut self.g)) {
+            for v in separated_list1_inner(input, &mut self.f, &mut self.g) {
                 res.extend(Some(v));
             }
         }?;

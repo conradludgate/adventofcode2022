@@ -1,11 +1,30 @@
-use next_gen::{generator, gen_iter};
+use next_gen::{gen_iter, generator};
 use nom::{
     error::{ErrorKind, ParseError},
     Err, InputLength, Parser,
 };
 
 #[generator(yield(O))]
-pub fn separated_list1<I, O, O2, F, G, E>(mut input: I, mut f: F, mut g: G) -> Result<I, Err<E>>
+pub fn separated_list1<I, O, O2, F, G, E>(input: I, mut f: F, mut g: G) -> Result<I, Err<E>>
+where
+    I: Clone + InputLength,
+    F: Parser<I, O, E>,
+    G: Parser<I, O2, E>,
+    E: ParseError<I>,
+{
+    gen_iter! {
+        for a in separated_list1_inner(input, &mut f, &mut g) {
+            yield_!(a);
+        }
+    }
+}
+
+#[generator(yield(O))]
+pub(crate) fn separated_list1_inner<I, O, O2, F, G, E>(
+    input: I,
+    f: &mut F,
+    g: &mut G,
+) -> Result<I, Err<E>>
 where
     I: Clone + InputLength,
     F: Parser<I, O, E>,
@@ -13,12 +32,11 @@ where
     E: ParseError<I>,
 {
     // Parse the first element
-    let mut o;
-    (input, o) = f.parse(input)?;
+    let (mut input, o) = f.parse(input)?;
+    yield_!(o);
 
     loop {
-        yield_!(o);
-        (input, o) = match g.parse(input.clone()) {
+        match g.parse(input.clone()) {
             Err(Err::Error(_)) => return Ok(input),
             Err(e) => return Err(e),
             Ok((i, _)) => {
@@ -26,8 +44,14 @@ where
                 if i.input_len() == input.input_len() {
                     return Err(Err::Error(E::from_error_kind(i, ErrorKind::SeparatedList)));
                 }
-
-                f.parse(i)?
+                match f.parse(i) {
+                    Err(Err::Error(_)) => return Ok(input),
+                    Err(e) => return Err(e),
+                    Ok((i, o)) => {
+                        yield_!(o);
+                        input = i;
+                    }
+                }
             }
         }
     }
@@ -48,7 +72,7 @@ where
     (input, a) = f.parse(input)?;
     (input, _) = g.parse(input)?;
 
-    gen_iter!{
+    gen_iter! {
         for b in separated_list1(input, f, g) {
             let a = std::mem::replace(&mut a, b.clone());
             yield_!((a, b));
