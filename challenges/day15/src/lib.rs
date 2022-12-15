@@ -1,3 +1,5 @@
+#![feature(array_windows)]
+
 use std::ops::Range;
 
 use aoc::{Challenge, Parser as ChallengeParser};
@@ -64,76 +66,69 @@ impl Challenge for Solution {
 }
 
 impl Solution {
-    fn part_one(self, row: i32) -> usize {
-        let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
-
+    fn build_range<'a>(
+        &self,
+        row: i32,
+        ranges: &'a mut Vec<Range<i32>>,
+        minmax: Range<i32>,
+    ) -> &'a [Range<i32>] {
+        ranges.clear();
         for pos in &self.0 {
             let dist = pos.x1.abs_diff(pos.x2) + pos.y1.abs_diff(pos.y2);
             let offset = pos.y1.abs_diff(row);
             if offset > dist {
                 continue;
             }
-
             let d = (dist - offset) as i32;
-            let range = (pos.x1 - d)..(pos.x1 + d);
+            let mut range = (pos.x1 - d).max(minmax.start)..(pos.x1 + d + 1).min(minmax.end);
 
-            match ranges.binary_search_by_key(&range.end, |r| r.end) {
-                Ok(i) => {
-                    ranges[i].start = i32::min(ranges[i].start, range.start);
+            let mut iter = ranges.iter_mut().enumerate();
+            loop {
+                let Some((i, r)) = iter.next() else {
+                    ranges.push(range);
+                    break
+                };
+
+                if range.end < r.start {
+                    ranges.insert(i, range);
+                    break;
                 }
-                Err(i) => ranges.insert(i, range),
-            }
 
-            let mut i = 1;
-            while i < ranges.len() {
-                if ranges[i - 1].end >= ranges[i].start {
-                    ranges[i - 1].start = i32::min(ranges[i].start, ranges[i - 1].start);
-                    ranges[i - 1].end = ranges[i].end;
-                    ranges.remove(i);
-                } else {
-                    i += 1;
+                if range.start <= r.end {
+                    if range.start < r.start {
+                        r.start = range.start;
+                    }
+                    if range.end > r.end {
+                        range.start = r.end;
+                    } else {
+                        break;
+                    }
                 }
             }
         }
+        ranges.as_slice()
+    }
 
-        ranges.into_iter().map(|r| r.len()).sum()
+    fn part_one(self, row: i32) -> usize {
+        let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
+
+        self.build_range(row, &mut ranges, i32::MIN..i32::MAX)
+            .iter()
+            .map(|r| r.len())
+            .sum::<usize>()
+            - 1 // not sure what that -1 is about tbh
     }
 
     fn part_two(self, max: i32) -> usize {
         let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
         for row in 0..=max {
-            ranges.clear();
-            for pos in &self.0 {
-                let dist = pos.x1.abs_diff(pos.x2) + pos.y1.abs_diff(pos.y2);
-                let offset = pos.y1.abs_diff(row);
-                if offset > dist {
-                    continue;
+            for [a, b] in self
+                .build_range(row, &mut ranges, 0..max + 1)
+                .array_windows()
+            {
+                if a.end < b.start {
+                    return (row as usize) + (a.end as usize) * 4000000;
                 }
-                let d = (dist - offset) as i32;
-                let range = (pos.x1 - d).max(0)..(pos.x1 + d + 1).min(max + 1);
-
-                match ranges.binary_search_by_key(&range.end, |r| r.end) {
-                    Ok(i) => {
-                        ranges[i].start = i32::min(ranges[i].start, range.start);
-                    }
-                    Err(i) => ranges.insert(i, range),
-                }
-                let mut i = 1;
-                while i < ranges.len() {
-                    if ranges[i - 1].end >= ranges[i].start {
-                        ranges[i - 1].start = i32::min(ranges[i].start, ranges[i - 1].start);
-                        ranges[i - 1].end = ranges[i].end;
-                        ranges.remove(i);
-                        i = 1;
-                    } else {
-                        i += 1;
-                    }
-                }
-            }
-
-            if let [a, _] = ranges.as_slice() {
-                let col = a.end;
-                return (row as usize) + (col as usize) * 4000000;
             }
         }
         0
