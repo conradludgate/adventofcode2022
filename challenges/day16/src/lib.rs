@@ -170,7 +170,6 @@ impl Challenge for Solution {
 
                 identity.chain(Iter {
                     leads_to: leads_to.clone().into_iter(),
-                    // rate,
                     time,
                     state,
                     max,
@@ -197,171 +196,86 @@ impl Challenge for Solution {
     fn part_two(self) -> Self::Output2 {
         #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
         struct Position {
-            person: usize,
-            elephant: usize,
+            valve: usize,
             // bit 1 means valve at that index is open
             state: u64,
-            pt: usize,
-            et: usize,
+            time: usize,
         }
 
         let max = 26 * self.1.iter().map(|x| x.flow_rate).max().unwrap_or(0);
 
         let output = astar::astar(
             &Position {
-                person: self.0,
-                elephant: self.0,
+                valve: self.0,
                 state: 0,
-                pt: 1,
-                et: 1,
+                time: 0,
             },
             |p| {
-                let Position {
-                    person,
-                    elephant,
+                let Position { valve, state, time } = *p;
+
+                let Valve {
+                    flow_rate,
+                    ref leads_to,
+                    ..
+                } = self.1[valve];
+
+                let valve_open = state | (1 << valve);
+                let rate = if state == valve_open {
+                    0
+                } else {
+                    flow_rate * (25 - (time % 26) as i32)
+                };
+
+                let new_valve = if time == 25 { self.0 } else { valve };
+
+                let identity = std::iter::once((
+                    Position {
+                        valve: new_valve,
+                        state: valve_open,
+                        time: time + 1,
+                    },
+                    max - rate,
+                ));
+
+                struct Iter {
+                    leads_to: arrayvec::IntoIter<(usize, usize), 64>,
+                    time: usize,
+                    state: u64,
+                    max: i32,
+                }
+
+                impl Iterator for Iter {
+                    type Item = (Position, i32);
+                    fn next(&mut self) -> Option<Self::Item> {
+                        loop {
+                            let (lead, t) = self.leads_to.next()?;
+                            if (self.time < 26 && self.time + t >= 26)
+                                || (self.time >= 26 && self.time + t >= 52)
+                            {
+                                continue;
+                            }
+
+                            break Some((
+                                Position {
+                                    valve: lead,
+                                    time: self.time + t,
+                                    state: self.state,
+                                },
+                                self.max * t as i32,
+                            ));
+                        }
+                    }
+                }
+
+                identity.into_iter().chain(Iter {
+                    leads_to: leads_to.clone().into_iter(),
+                    time,
                     state,
-                    pt,
-                    et,
-                } = *p;
-
-                let Valve {
-                    flow_rate: pfr,
-                    leads_to: ref plt,
-                    ..
-                } = self.1[person];
-                let Valve {
-                    flow_rate: efr,
-                    leads_to: ref elt,
-                    ..
-                } = self.1[elephant];
-
-                let pi = (pt < 26).then_some({
-                    let valve_open = state | (1 << person);
-                    let rate = if state == valve_open {
-                        0
-                    } else {
-                        pfr * (26 - pt as i32)
-                    };
-                    (
-                        Position {
-                            person,
-                            elephant,
-                            state: valve_open,
-                            pt: pt + 1,
-                            et,
-                        },
-                        max - rate,
-                    )
-                });
-
-                let ei = (pt == 26 && et < 26).then_some({
-                    let valve_open = state | (1 << elephant);
-                    let rate = if state == valve_open {
-                        0
-                    } else {
-                        efr * (26 - et as i32)
-                    };
-                    (
-                        Position {
-                            person,
-                            elephant,
-                            state: valve_open,
-                            pt,
-                            et: et + 1,
-                        },
-                        max - rate,
-                    )
-                });
-
-                struct PersonIter {
-                    elephant: usize,
-                    plt: arrayvec::IntoIter<(usize, usize), 64>,
-                    pt: usize,
-                    et: usize,
-                    state: u64,
-                    max: i32,
-                }
-
-                impl Iterator for PersonIter {
-                    type Item = (Position, i32);
-                    fn next(&mut self) -> Option<Self::Item> {
-                        loop {
-                            let (person, t) = self.plt.next()?;
-                            if self.pt + t > 26 {
-                                continue;
-                            }
-
-                            break Some((
-                                Position {
-                                    elephant: self.elephant,
-                                    person,
-                                    pt: self.pt + t,
-                                    et: self.et,
-                                    state: self.state,
-                                },
-                                self.max * t as i32,
-                            ));
-                        }
-                    }
-                }
-                struct ElephantIter {
-                    person: usize,
-                    elt: arrayvec::IntoIter<(usize, usize), 64>,
-                    pt: usize,
-                    et: usize,
-                    state: u64,
-                    max: i32,
-                }
-
-                impl Iterator for ElephantIter {
-                    type Item = (Position, i32);
-                    fn next(&mut self) -> Option<Self::Item> {
-                        if self.pt < 26 {
-                            return None;
-                        }
-                        loop {
-                            let (elephant, t) = self.elt.next()?;
-                            if self.et + t > 26 {
-                                continue;
-                            }
-
-                            break Some((
-                                Position {
-                                    elephant,
-                                    person: self.person,
-                                    pt: self.pt,
-                                    et: self.et + t,
-                                    state: self.state,
-                                },
-                                self.max * t as i32,
-                            ));
-                        }
-                    }
-                }
-
-                pi.into_iter()
-                    .chain(ei)
-                    .chain(PersonIter {
-                        plt: plt.clone().into_iter(),
-                        elephant,
-                        // rate,
-                        pt,
-                        et,
-                        state,
-                        max,
-                    })
-                    .chain(ElephantIter {
-                        elt: elt.clone().into_iter(),
-                        person,
-                        // rate,
-                        pt,
-                        et,
-                        state,
-                        max,
-                    })
+                    max,
+                })
             },
             |p| {
-                let time_remaining = 52 - (p.pt as i32) - (p.et as i32);
+                let time_remaining = 51 - (p.time as i32);
                 let mut flow_remaining = max;
                 for (i, valve) in self.1.iter().enumerate() {
                     if (p.state >> i) & 1 == 0 {
@@ -370,11 +284,11 @@ impl Challenge for Solution {
                 }
                 time_remaining * flow_remaining
             },
-            |p| p.pt == 26 && p.et == 26,
+            |p| p.time == 51,
         )
         .unwrap();
 
-        (50 * max - output.1) as usize
+        (51 * max - output.1) as usize
     }
 }
 
