@@ -45,7 +45,7 @@ fn main() {
     results.push(check::<day12::Solution>(DAY12));
     results.push(check::<day13::Solution>(DAY13));
     results.push(check::<day14::Solution>(DAY14));
-    results.push(check::<day15::Solution::<4000000>>(DAY15));
+    results.push(check::<day15::Solution<4000000>>(DAY15));
     results.push(check::<day16::Solution>(DAY16));
     // results.push(check::<day17::Solution>(DAY17));
     // results.push(check::<day18::Solution>(DAY18));

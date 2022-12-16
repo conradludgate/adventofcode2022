@@ -95,11 +95,8 @@ impl ChallengeParser for Solution {
     }
 }
 
-impl Challenge for Solution {
-    const NAME: &'static str = env!("CARGO_PKG_NAME");
-
-    type Output1 = usize;
-    fn part_one(self) -> Self::Output1 {
+impl Solution {
+    fn solve(&self, steps: i32, until: usize) -> usize {
         #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
         struct Position {
             valve: usize,
@@ -108,13 +105,13 @@ impl Challenge for Solution {
             time: usize,
         }
 
-        let max = 30 * self.1.iter().map(|x| x.flow_rate).max().unwrap_or(0);
+        let max = steps * self.1.iter().map(|x| x.flow_rate).max().unwrap_or(0);
 
-        let output = astar::astar(
+        let dist = astar::astar(
             &Position {
                 valve: self.0,
                 state: 0,
-                time: 1,
+                time: 0,
             },
             |p| {
                 let Position { valve, state, time } = *p;
@@ -128,7 +125,7 @@ impl Challenge for Solution {
                 let rate = if state == valve_open {
                     0
                 } else {
-                    flow_rate * (30 - time as i32)
+                    flow_rate * (steps - 1 - (time as i32) % steps)
                 };
 
                 let identity = std::iter::once((
@@ -145,6 +142,8 @@ impl Challenge for Solution {
                     time: usize,
                     state: u64,
                     max: i32,
+                    steps: usize,
+                    until: usize,
                 }
 
                 impl Iterator for Iter {
@@ -152,7 +151,9 @@ impl Challenge for Solution {
                     fn next(&mut self) -> Option<Self::Item> {
                         loop {
                             let (lead, t) = self.leads_to.next()?;
-                            if self.time + t > 30 {
+                            if (self.time < self.steps && self.time + t >= self.steps)
+                                || (self.time >= self.steps && self.time + t >= self.until)
+                            {
                                 continue;
                             }
 
@@ -173,122 +174,40 @@ impl Challenge for Solution {
                     time,
                     state,
                     max,
+                    steps: steps as usize,
+                    until,
                 })
             },
             |p| {
-                let time_remaining = 30 - p.time as i32;
+                let time_remaining = until - p.time;
                 let mut flow_remaining = max;
                 for (i, valve) in self.1.iter().enumerate() {
                     if (p.state >> i) & 1 == 0 {
                         flow_remaining -= valve.flow_rate;
                     }
                 }
-                time_remaining * flow_remaining
+                time_remaining as i32 * flow_remaining
             },
-            |p| p.time == 30,
+            |p| p.time + 1 == until,
         )
-        .unwrap();
+        .unwrap()
+        .1;
 
-        (29 * max - output.1) as usize
+        (until - 1) * (max as usize) - (dist as usize)
+    }
+}
+
+impl Challenge for Solution {
+    const NAME: &'static str = env!("CARGO_PKG_NAME");
+
+    type Output1 = usize;
+    fn part_one(self) -> Self::Output1 {
+        self.solve(30, 30)
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-        struct Position {
-            valve: usize,
-            // bit 1 means valve at that index is open
-            state: u64,
-            time: usize,
-        }
-
-        let max = 26 * self.1.iter().map(|x| x.flow_rate).max().unwrap_or(0);
-
-        let output = astar::astar(
-            &Position {
-                valve: self.0,
-                state: 0,
-                time: 0,
-            },
-            |p| {
-                let Position { valve, state, time } = *p;
-
-                let Valve {
-                    flow_rate,
-                    ref leads_to,
-                    ..
-                } = self.1[valve];
-
-                let valve_open = state | (1 << valve);
-                let rate = if state == valve_open {
-                    0
-                } else {
-                    flow_rate * (25 - (time % 26) as i32)
-                };
-
-                let new_valve = if time == 25 { self.0 } else { valve };
-
-                let identity = std::iter::once((
-                    Position {
-                        valve: new_valve,
-                        state: valve_open,
-                        time: time + 1,
-                    },
-                    max - rate,
-                ));
-
-                struct Iter {
-                    leads_to: arrayvec::IntoIter<(usize, usize), 64>,
-                    time: usize,
-                    state: u64,
-                    max: i32,
-                }
-
-                impl Iterator for Iter {
-                    type Item = (Position, i32);
-                    fn next(&mut self) -> Option<Self::Item> {
-                        loop {
-                            let (lead, t) = self.leads_to.next()?;
-                            if (self.time < 26 && self.time + t >= 26)
-                                || (self.time >= 26 && self.time + t >= 52)
-                            {
-                                continue;
-                            }
-
-                            break Some((
-                                Position {
-                                    valve: lead,
-                                    time: self.time + t,
-                                    state: self.state,
-                                },
-                                self.max * t as i32,
-                            ));
-                        }
-                    }
-                }
-
-                identity.into_iter().chain(Iter {
-                    leads_to: leads_to.clone().into_iter(),
-                    time,
-                    state,
-                    max,
-                })
-            },
-            |p| {
-                let time_remaining = 51 - (p.time as i32);
-                let mut flow_remaining = max;
-                for (i, valve) in self.1.iter().enumerate() {
-                    if (p.state >> i) & 1 == 0 {
-                        flow_remaining -= valve.flow_rate;
-                    }
-                }
-                time_remaining * flow_remaining
-            },
-            |p| p.time == 51,
-        )
-        .unwrap();
-
-        (51 * max - output.1) as usize
+        self.solve(26, 52)
     }
 }
 
