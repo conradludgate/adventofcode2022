@@ -13,6 +13,23 @@ mod ext;
 pub use ext::*;
 pub mod gen;
 
+/// ```
+/// let line = "Sensor at x=2, y=18: closest beacon is at x=-2, y=15";
+/// let segments = ["Sensor at x=",", y=",": closest beacon is at x=",", y="];
+/// assert_eq!(parsers::split_many(line, segments), Some(["2","18","-2","15"]));
+/// ```
+pub fn split_many<'a, const N: usize>(
+    mut s: &'a str,
+    mut delimiters: [&'a str; N],
+) -> Option<[&'a str; N]> {
+    s = s.strip_prefix(delimiters[0])?;
+    for i in 1..N {
+        (delimiters[i - 1], s) = s.split_once(delimiters[i])?;
+    }
+    delimiters[N - 1] = s;
+    Some(delimiters)
+}
+
 pub fn number<O>(input: &str) -> IResult<&str, O>
 where
     O: FromStr,

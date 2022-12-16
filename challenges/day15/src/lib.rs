@@ -4,23 +4,8 @@ use std::ops::Range;
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
+use parsers::split_many;
 
-/// ```ignore
-/// let line = "Sensor at x=2, y=18: closest beacon is at x=-2, y=15";
-/// let segments = ["Sensor at x=",", y=",": closest beacon is at x=",", y="];
-/// assert_eq!(split_many(line, segments), Some(["2","18","-2","15"]));
-/// ```
-fn split_many<'a, const N: usize>(
-    mut s: &'a str,
-    mut delimiters: [&'a str; N],
-) -> Option<[&'a str; N]> {
-    s = s.strip_prefix(delimiters[0])?;
-    for i in 1..N {
-        (delimiters[i - 1], s) = s.split_once(delimiters[i])?;
-    }
-    delimiters[N - 1] = s;
-    Some(delimiters)
-}
 #[derive(Debug, PartialEq, Clone)]
 struct Positions {
     x1: i32,
