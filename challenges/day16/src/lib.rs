@@ -117,12 +117,7 @@ impl Challenge for Solution {
                 time: 1,
             },
             |p| {
-                let Position {
-                    valve,
-                    state,
-                    time,
-                    // rate,
-                } = *p;
+                let Position { valve, state, time } = *p;
                 let Valve {
                     flow_rate,
                     ref leads_to,
@@ -200,7 +195,186 @@ impl Challenge for Solution {
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        0
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+        struct Position {
+            person: usize,
+            elephant: usize,
+            // bit 1 means valve at that index is open
+            state: u64,
+            pt: usize,
+            et: usize,
+        }
+
+        let max = 26 * self.1.iter().map(|x| x.flow_rate).max().unwrap_or(0);
+
+        let output = astar::astar(
+            &Position {
+                person: self.0,
+                elephant: self.0,
+                state: 0,
+                pt: 1,
+                et: 1,
+            },
+            |p| {
+                let Position {
+                    person,
+                    elephant,
+                    state,
+                    pt,
+                    et,
+                } = *p;
+
+                let Valve {
+                    flow_rate: pfr,
+                    leads_to: ref plt,
+                    ..
+                } = self.1[person];
+                let Valve {
+                    flow_rate: efr,
+                    leads_to: ref elt,
+                    ..
+                } = self.1[elephant];
+
+                let pi = (pt < 26).then_some({
+                    let valve_open = state | (1 << person);
+                    let rate = if state == valve_open {
+                        0
+                    } else {
+                        pfr * (26 - pt as i32)
+                    };
+                    (
+                        Position {
+                            person,
+                            elephant,
+                            state: valve_open,
+                            pt: pt + 1,
+                            et,
+                        },
+                        max - rate,
+                    )
+                });
+
+                let ei = (pt == 26 && et < 26).then_some({
+                    let valve_open = state | (1 << elephant);
+                    let rate = if state == valve_open {
+                        0
+                    } else {
+                        efr * (26 - et as i32)
+                    };
+                    (
+                        Position {
+                            person,
+                            elephant,
+                            state: valve_open,
+                            pt,
+                            et: et + 1,
+                        },
+                        max - rate,
+                    )
+                });
+
+                struct PersonIter {
+                    elephant: usize,
+                    plt: arrayvec::IntoIter<(usize, usize), 64>,
+                    pt: usize,
+                    et: usize,
+                    state: u64,
+                    max: i32,
+                }
+
+                impl Iterator for PersonIter {
+                    type Item = (Position, i32);
+                    fn next(&mut self) -> Option<Self::Item> {
+                        loop {
+                            let (person, t) = self.plt.next()?;
+                            if self.pt + t > 26 {
+                                continue;
+                            }
+
+                            break Some((
+                                Position {
+                                    elephant: self.elephant,
+                                    person,
+                                    pt: self.pt + t,
+                                    et: self.et,
+                                    state: self.state,
+                                },
+                                self.max * t as i32,
+                            ));
+                        }
+                    }
+                }
+                struct ElephantIter {
+                    person: usize,
+                    elt: arrayvec::IntoIter<(usize, usize), 64>,
+                    pt: usize,
+                    et: usize,
+                    state: u64,
+                    max: i32,
+                }
+
+                impl Iterator for ElephantIter {
+                    type Item = (Position, i32);
+                    fn next(&mut self) -> Option<Self::Item> {
+                        if self.pt < 26 {
+                            return None;
+                        }
+                        loop {
+                            let (elephant, t) = self.elt.next()?;
+                            if self.et + t > 26 {
+                                continue;
+                            }
+
+                            break Some((
+                                Position {
+                                    elephant,
+                                    person: self.person,
+                                    pt: self.pt,
+                                    et: self.et + t,
+                                    state: self.state,
+                                },
+                                self.max * t as i32,
+                            ));
+                        }
+                    }
+                }
+
+                pi.into_iter()
+                    .chain(ei)
+                    .chain(PersonIter {
+                        plt: plt.clone().into_iter(),
+                        elephant,
+                        // rate,
+                        pt,
+                        et,
+                        state,
+                        max,
+                    })
+                    .chain(ElephantIter {
+                        elt: elt.clone().into_iter(),
+                        person,
+                        // rate,
+                        pt,
+                        et,
+                        state,
+                        max,
+                    })
+            },
+            |p| {
+                let time_remaining = 52 - (p.pt as i32) - (p.et as i32);
+                let mut flow_remaining = max;
+                for (i, valve) in self.1.iter().enumerate() {
+                    if (p.state >> i) & 1 == 0 {
+                        flow_remaining -= valve.flow_rate;
+                    }
+                }
+                time_remaining * flow_remaining
+            },
+            |p| p.pt == 26 && p.et == 26,
+        )
+        .unwrap();
+
+        (50 * max - output.1) as usize
     }
 }
 
@@ -236,6 +410,6 @@ Valve JJ has flow rate=21; tunnel leads to valve II
     #[test]
     fn part_two() {
         let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        assert_eq!(output.part_two(), 1707);
     }
 }
