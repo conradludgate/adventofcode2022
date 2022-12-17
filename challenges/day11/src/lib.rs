@@ -39,7 +39,6 @@ struct Monkey {
     op: Operation,
     test: Div,
     throws: [usize; 2],
-    inspect: u32,
 }
 
 impl Monkey {
@@ -68,7 +67,6 @@ impl Monkey {
                 op,
                 test: Div::new(test),
                 throws: [throw1, throw2],
-                inspect: 0,
             },
         ))
     }
@@ -88,7 +86,7 @@ impl ChallengeParser for Solution {
 
 impl Solution {
     #[allow(clippy::needless_range_loop)]
-    fn solve(mut self, relief: u64, iterations: usize) -> usize {
+    fn solve(self, relief: u64, iterations: usize) -> usize {
         let relief = Div::new(relief);
         let lcm = Div::new(self.0.iter().map(|m| m.test.1).product());
 
@@ -100,13 +98,13 @@ impl Solution {
         }
 
         // SAFETY: checked above
-        unsafe { self.rounds(iterations, relief, lcm) }
+        let inspect = unsafe { self.rounds(iterations, relief, lcm) };
 
         let mut max1 = 0;
         let mut max2 = 0;
-        for monkey in self.0 {
-            let min1 = u32::min(max1, monkey.inspect);
-            max1 = u32::max(max1, monkey.inspect);
+        for monkey in inspect {
+            let min1 = u32::min(max1, monkey);
+            max1 = u32::max(max1, monkey);
             max2 = u32::max(max2, min1);
         }
 
@@ -116,10 +114,11 @@ impl Solution {
     /// # Safety
     /// all monkey throw indices should be within the bounds of the monkey array
     #[inline(never)]
-    unsafe fn rounds(&mut self, rounds: usize, relief: Div, lcm: Div) {
+    unsafe fn rounds(&self, mut rounds: usize, relief: Div, lcm: Div) -> [u32; 8] {
         // let inspect = [0u32; 8];
         let mut items = [0u64; 24 * 8];
         let mut lengths = [0usize; 8];
+        let mut inspections = [0u32; 8];
 
         for (i, monkey) in self.0.iter().enumerate() {
             let len = monkey.items.len();
@@ -128,42 +127,96 @@ impl Solution {
             chunk.copy_from_slice(&monkey.items)
         }
 
-        for _round in 0..rounds {
-            for (i, monkey) in self.0.iter_mut().enumerate() {
-                let [j, k] = monkey.throws;
+        if rounds == 10000 {
+            let successor = |(mut items, mut lengths): ([u64; 24 * 8], [usize; 8])| -> ([u64; 24 * 8], [usize; 8]) {
+                self.round(relief, lcm, &mut items, &mut lengths, &mut [0; 8]);
+                (items, lengths)
+            };
+            let start = (items, lengths);
 
-                let len = std::mem::take(lengths.get_unchecked_mut(i));
-                monkey.inspect += len as u32;
-
-                let item_set = items.get_unchecked_mut(i * 24..i * 24 + len);
-                // let mut test = [0; 24];
-                for item in item_set {
-                    *item = monkey.op.apply(*item);
-                    // ensure the worries stay bounded
-                    *item = *item % lcm;
-                    // apply the worry relief
-                    if relief.1 > 1 {
-                        *item = *item / relief;
-                    }
+            // detect cycles
+            let mut power = 1;
+            let mut lam = 1;
+            let mut tortoise = start;
+            let mut hare = successor(start);
+            while tortoise != hare {
+                if power == lam {
+                    (tortoise, power, lam) = (hare, power * 2, 0);
                 }
-
-                let mut lenj = *lengths.get_unchecked(j);
-                let mut lenk = *lengths.get_unchecked(k);
-
-                for i in i * 24..i * 24 + len {
-                    let item = *items.get_unchecked(i);
-                    if item % monkey.test == 0 {
-                        items.swap_unchecked(i, lenj + j * 24);
-                        lenj += 1;
-                    } else {
-                        items.swap_unchecked(i, lenk + k * 24);
-                        lenk += 1;
-                    };
-                }
-
-                *lengths.get_unchecked_mut(j) = lenj;
-                *lengths.get_unchecked_mut(k) = lenk;
+                (hare, lam) = (successor(hare), lam + 1);
             }
+            let mut mu = 0;
+            (tortoise, hare) = (start, (0..lam).fold(start, |x, _| successor(x)));
+            while tortoise != hare {
+                (tortoise, hare, mu) = (successor(tortoise), successor(hare), mu + 1);
+            }
+
+            // once we found a cycle, count the repeated inspections
+            let remaining = 10000 - mu;
+            let div = remaining / lam;
+            let off = remaining - div * lam;
+            if div > 0 {
+                let (mut items, mut lengths) = tortoise;
+                for _ in 0..lam {
+                    self.round(relief, lcm, &mut items, &mut lengths, &mut inspections);
+                }
+                for i in &mut inspections {
+                    *i *= div;
+                }
+                // finally, tail off to count the base inspections
+                rounds = (mu + off) as usize;
+            }
+        }
+
+        for _round in 0..rounds {
+            self.round(relief, lcm, &mut items, &mut lengths, &mut inspections)
+        }
+        inspections
+    }
+
+    #[inline(always)]
+    unsafe fn round(
+        &self,
+        relief: Div,
+        lcm: Div,
+        items: &mut [u64; 24 * 8],
+        lengths: &mut [usize; 8],
+        inspections: &mut [u32; 8],
+    ) {
+        for (i, monkey) in self.0.iter().enumerate() {
+            let [j, k] = monkey.throws;
+
+            let len = std::mem::take(lengths.get_unchecked_mut(i));
+            *inspections.get_unchecked_mut(i) += len as u32;
+
+            let item_set = items.get_unchecked_mut(i * 24..i * 24 + len);
+            // let mut test = [0; 24];
+            for item in item_set {
+                *item = monkey.op.apply(*item);
+                // ensure the worries stay bounded
+                *item = *item % lcm;
+                // apply the worry relief
+                if relief.1 > 1 {
+                    *item = *item / relief;
+                }
+            }
+
+            let mut lenj = *lengths.get_unchecked(j);
+            let mut lenk = *lengths.get_unchecked(k);
+
+            for i in i * 24..i * 24 + len {
+                let item = *items.get_unchecked(i);
+                if item % monkey.test == 0 {
+                    items.swap_unchecked(i, lenj + j * 24);
+                    lenj += 1;
+                } else {
+                    items.swap_unchecked(i, lenk + k * 24);
+                    lenk += 1;
+                };
+            }
+
+            *lengths.get_unchecked_mut(j) = lenj;
+            *lengths.get_unchecked_mut(k) = lenk;
         }
     }
 }

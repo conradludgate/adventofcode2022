@@ -101,7 +101,7 @@ impl Challenge for Solution {
                         } else {
                             stack_height = y + height;
                             bitset[j] |= a;
-                            if j + 1== bitset.len() {
+                            if j + 1 == bitset.len() {
                                 bitset.push(b);
                             } else {
                                 bitset[j + 1] |= b;
