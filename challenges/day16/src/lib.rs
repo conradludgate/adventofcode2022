@@ -112,6 +112,7 @@ impl Solution {
         }
 
         let max = steps * self.1.iter().map(|x| x.flow_rate).max().unwrap_or(0);
+        let mut count = 0;
 
         let dist = astar::astar(
             &Position {
@@ -120,6 +121,7 @@ impl Solution {
                 time: 0,
             },
             |p| {
+                count += 1;
                 let Position { valve, state, time } = *p;
                 let Valve {
                     flow_rate,
@@ -206,6 +208,7 @@ impl Solution {
         .unwrap()
         .1;
 
+        // dbg!(count);
         (until - 1) * (max as usize) - (dist as usize)
     }
 }
