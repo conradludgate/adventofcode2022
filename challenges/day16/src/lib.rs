@@ -48,6 +48,7 @@ impl ChallengeParser for Solution {
             });
         }
 
+        // we want highest flow at the beginning - this helps our heuristics
         init.sort_unstable_by_key(|x| std::cmp::Reverse(x.flow_rate));
 
         let mut start = 0;
@@ -71,6 +72,7 @@ impl ChallengeParser for Solution {
             });
         }
 
+        // Floyd Warshall
         let v = y.len();
         for k in 1..v {
             for i in 0..v {
@@ -94,44 +96,6 @@ impl ChallengeParser for Solution {
         for i in 0..v {
             y[i].leads_to.retain(|x| init[x.0].flow_rate > 0)
         }
-
-        // for i in 0..y.len() {
-        //     let mut dont_track = ArrayVec::<usize, 64>::new();
-        //     dont_track.push(i);
-        //     let mut j = 0;
-        //     while j < y[i].leads_to.len() {
-        //         let (k, t) = y[i].leads_to[j];
-        //         let Ok([first, second]) = y.get_many_mut([i, k]) else {
-        //             j += 1;
-        //             continue;
-        //         };
-
-        //         if second.flow_rate > 0 {
-        //             j += 1;
-        //             continue;
-        //         }
-
-        //         // if this lead is useless since the flow_rate is zero.
-        //         // remove it and copy it's leads in
-        //         first.leads_to.remove(j);
-        //         dont_track.push(k);
-
-        //         // follow the leads from k
-        //         for (m, t1) in second.leads_to.iter().copied() {
-        //             if dont_track.contains(&m) {
-        //                 continue;
-        //             }
-        //             let p = first.leads_to.iter().position(|x| x.0 == m);
-        //             // only push if we don't have this path already
-        //             // if we do have this path, update it
-        //             if let Some(p) = p {
-        //                 first.leads_to[p].1 = usize::min(first.leads_to[p].1, t + t1);
-        //             } else {
-        //                 first.leads_to.push((m, t + t1));
-        //             }
-        //         }
-        //     }
-        // }
 
         Ok(("", Self(start, y)))
     }
@@ -184,7 +148,6 @@ impl Solution {
                     state: u64,
                     max: i32,
                     steps: usize,
-                    until: usize,
                 }
 
                 impl Iterator for Iter {
@@ -197,7 +160,7 @@ impl Solution {
                             }
 
                             if (self.time < self.steps && self.time + t >= self.steps)
-                                || (self.time >= self.steps && self.time + t >= self.until)
+                                || (self.time >= self.steps && self.time + t >= self.steps * 2)
                             {
                                 continue;
                             }
@@ -220,7 +183,6 @@ impl Solution {
                     state,
                     max,
                     steps: steps as usize,
-                    until,
                 })
             },
             |p| {
