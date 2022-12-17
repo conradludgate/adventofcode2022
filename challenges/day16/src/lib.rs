@@ -5,8 +5,15 @@ use nom::IResult;
 use pathfinding::directed::astar;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Valve {
+pub struct ValveInit {
     name: &'static str,
+    flow_rate: i32,
+    // first value is the index of the valve, second value is the time it takes to get there
+    leads_to: Vec<&'static str>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Valve {
     flow_rate: i32,
     // first value is the index of the valve, second value is the time it takes to get there
     leads_to: ArrayVec<(usize, usize), 64>,
@@ -17,79 +24,114 @@ pub struct Solution(usize, ArrayVec<Valve, 64>);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        let mut x = ArrayVec::<&'static str, 64>::new();
-        let mut y = ArrayVec::<Valve, 64>::new();
+        let mut init = ArrayVec::<ValveInit, 64>::new();
 
-        let mut start = 0;
-        for (i, line) in input.lines().enumerate() {
+        for line in input.lines() {
             let name = &line[6..8];
-            if name == "AA" {
-                start = i;
-            }
-            x.push(name);
-        }
 
-        for (i, line) in input.lines().enumerate() {
             let Some((_, line)) = line.split_once('=') else { continue; };
             let Some((flow_rate, line)) = line.split_once("; ") else { continue; };
             let flow_rate = flow_rate.parse().unwrap();
 
-            let mut leads_to = ArrayVec::new();
-            if let Some(singular) = line.strip_prefix("tunnel leads to valve ") {
-                let idx = x.iter().position(|x| *x == singular).unwrap();
-                leads_to.push((idx, 1));
+            let leads_to = if let Some(singular) = line.strip_prefix("tunnel leads to valve ") {
+                vec![singular]
             } else if let Some(many) = line.strip_prefix("tunnels lead to valves ") {
-                for leads in many.split(", ") {
-                    let idx = x.iter().position(|x| *x == leads).unwrap();
-                    leads_to.push((idx, 1));
-                }
-            }
+                many.split(", ").collect()
+            } else {
+                vec![]
+            };
 
-            y.push(Valve {
-                name: x[i],
+            init.push(ValveInit {
+                name,
                 flow_rate,
                 leads_to,
             });
         }
 
-        #[allow(clippy::never_loop)]
-        for i in 0..y.len() {
-            let mut dont_track = ArrayVec::<usize, 64>::new();
-            dont_track.push(i);
-            let mut j = 0;
-            while j < y[i].leads_to.len() {
-                let (k, t) = y[i].leads_to[j];
-                let Ok([first, second]) = y.get_many_mut([i, k]) else {
-                    j += 1;
-                    continue;
-                };
+        init.sort_unstable_by_key(|x| std::cmp::Reverse(x.flow_rate));
 
-                if second.flow_rate > 0 {
-                    j += 1;
-                    continue;
-                }
+        let mut start = 0;
+        let mut y = ArrayVec::<Valve, 64>::new();
 
-                // if this lead is useless since the flow_rate is zero.
-                // remove it and copy it's leads in
-                first.leads_to.remove(j);
-                dont_track.push(k);
+        for (i, valve) in init.iter().enumerate() {
+            let leads_to = valve
+                .leads_to
+                .iter()
+                .flat_map(|&s| init.iter().position(|v| v.name == s))
+                .map(|j| (j, 1))
+                .collect();
 
-                // follow the leads from k
-                for (m, t1) in second.leads_to.iter().copied() {
-                    if dont_track.contains(&m) {
+            if valve.name == "AA" {
+                start = i;
+            }
+
+            y.push(Valve {
+                flow_rate: valve.flow_rate,
+                leads_to,
+            });
+        }
+
+        let v = y.len();
+        for k in 1..v {
+            for i in 0..v {
+                for j in 0..v {
+                    if i == j {
                         continue;
                     }
-                    let p = first.leads_to.iter().position(|x| x.0 == m);
-                    // only push if we don't have this path already
-                    // if we do have this path, update it
-                    if let Some(p) = p {
-                        first.leads_to[p].1 = usize::min(first.leads_to[p].1, t + t1);
+                    let Some(&(_, b)) = y[i].leads_to.iter().find(|x| x.0 == k) else { continue };
+                    let Some(&(_, c)) = y[k].leads_to.iter().find(|x| x.0 == j) else { continue };
+                    let d = b.saturating_add(c);
+                    if let Some(idx) = y[i].leads_to.iter().position(|x| x.0 == j) {
+                        if y[i].leads_to[idx].1 > d {
+                            y[i].leads_to[idx].1 = d;
+                        }
                     } else {
-                        first.leads_to.push((m, t + t1));
+                        y[i].leads_to.push((j, d))
                     }
                 }
             }
         }
+        for i in 0..v {
+            y[i].leads_to.retain(|x| init[x.0].flow_rate > 0)
+        }
+
+        // for i in 0..y.len() {
+        //     let mut dont_track = ArrayVec::<usize, 64>::new();
+        //     dont_track.push(i);
+        //     let mut j = 0;
+        //     while j < y[i].leads_to.len() {
+        //         let (k, t) = y[i].leads_to[j];
+        //         let Ok([first, second]) = y.get_many_mut([i, k]) else {
+        //             j += 1;
+        //             continue;
+        //         };
+
+        //         if second.flow_rate > 0 {
+        //             j += 1;
+        //             continue;
+        //         }
+
+        //         // if this lead is useless since the flow_rate is zero.
+        //         // remove it and copy it's leads in
+        //         first.leads_to.remove(j);
+        //         dont_track.push(k);
+
+        //         // follow the leads from k
+        //         for (m, t1) in second.leads_to.iter().copied() {
+        //             if dont_track.contains(&m) {
+        //                 continue;
+        //             }
+        //             let p = first.leads_to.iter().position(|x| x.0 == m);
+        //             // only push if we don't have this path already
+        //             // if we do have this path, update it
+        //             if let Some(p) = p {
+        //                 first.leads_to[p].1 = usize::min(first.leads_to[p].1, t + t1);
+        //             } else {
+        //                 first.leads_to.push((m, t + t1));
+        //             }
+        //         }
+        //     }
+        // }
 
         Ok(("", Self(start, y)))
     }
@@ -118,7 +160,6 @@ impl Solution {
                 let Valve {
                     flow_rate,
                     ref leads_to,
-                    ..
                 } = self.1[valve];
 
                 let valve_open = state | (1 << valve);
@@ -151,6 +192,10 @@ impl Solution {
                     fn next(&mut self) -> Option<Self::Item> {
                         loop {
                             let (lead, t) = self.leads_to.next()?;
+                            if (self.state >> lead) & 1 == 1 {
+                                continue;
+                            }
+
                             if (self.time < self.steps && self.time + t >= self.steps)
                                 || (self.time >= self.steps && self.time + t >= self.until)
                             {
@@ -179,14 +224,20 @@ impl Solution {
                 })
             },
             |p| {
-                let time_remaining = until - p.time;
-                let mut flow_remaining = max;
+                // assuming that our self.1 is sorted from most to least flow
+                // and for the heuristic, assume that we can make it to each valve in 2 time step
+                let mut time_remaining = until - p.time;
+                let mut flow_remaining = max * time_remaining as i32;
                 for (i, valve) in self.1.iter().enumerate() {
                     if (p.state >> i) & 1 == 0 {
-                        flow_remaining -= valve.flow_rate;
+                        flow_remaining -= valve.flow_rate * time_remaining as i32;
+                        if time_remaining < 2 {
+                            break;
+                        }
+                        time_remaining -= 2;
                     }
                 }
-                time_remaining as i32 * flow_remaining
+                flow_remaining
             },
             |p| p.time + 1 == until,
         )
