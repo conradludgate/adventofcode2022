@@ -7,20 +7,24 @@ use pathfinding::directed::astar;
 #[derive(Debug, PartialEq, Clone)]
 pub struct ValveInit {
     name: &'static str,
-    flow_rate: i32,
+    flow_rate: usize,
     // first value is the index of the valve, second value is the time it takes to get there
     leads_to: Vec<&'static str>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Valve {
-    flow_rate: i32,
+    name: &'static str,
+    flow_rate: usize,
     // first value is the index of the valve, second value is the time it takes to get there
     leads_to: ArrayVec<(usize, usize), 64>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(usize, ArrayVec<Valve, 64>);
+pub struct Solution {
+    start: usize,
+    valves: ArrayVec<Valve, 64>,
+}
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
@@ -52,7 +56,7 @@ impl ChallengeParser for Solution {
         init.sort_unstable_by_key(|x| std::cmp::Reverse(x.flow_rate));
 
         let mut start = 0;
-        let mut y = ArrayVec::<Valve, 64>::new();
+        let mut valves = ArrayVec::<Valve, 64>::new();
 
         for (i, valve) in init.iter().enumerate() {
             let leads_to = valve
@@ -66,43 +70,44 @@ impl ChallengeParser for Solution {
                 start = i;
             }
 
-            y.push(Valve {
+            valves.push(Valve {
+                name: valve.name,
                 flow_rate: valve.flow_rate,
                 leads_to,
             });
         }
 
         // Floyd Warshall
-        let v = y.len();
+        let v = valves.len();
         for k in 1..v {
             for i in 0..v {
                 for j in 0..v {
                     if i == j {
                         continue;
                     }
-                    let Some(&(_, b)) = y[i].leads_to.iter().find(|x| x.0 == k) else { continue };
-                    let Some(&(_, c)) = y[k].leads_to.iter().find(|x| x.0 == j) else { continue };
+                    let Some(&(_, b)) = valves[i].leads_to.iter().find(|x| x.0 == k) else { continue };
+                    let Some(&(_, c)) = valves[k].leads_to.iter().find(|x| x.0 == j) else { continue };
                     let d = b.saturating_add(c);
-                    if let Some(idx) = y[i].leads_to.iter().position(|x| x.0 == j) {
-                        if y[i].leads_to[idx].1 > d {
-                            y[i].leads_to[idx].1 = d;
+                    if let Some(idx) = valves[i].leads_to.iter().position(|x| x.0 == j) {
+                        if valves[i].leads_to[idx].1 > d {
+                            valves[i].leads_to[idx].1 = d;
                         }
                     } else {
-                        y[i].leads_to.push((j, d))
+                        valves[i].leads_to.push((j, d))
                     }
                 }
             }
         }
         for i in 0..v {
-            y[i].leads_to.retain(|x| init[x.0].flow_rate > 0)
+            valves[i].leads_to.retain(|x| init[x.0].flow_rate > 0)
         }
 
-        Ok(("", Self(start, y)))
+        Ok(("", Self { start, valves }))
     }
 }
 
 impl Solution {
-    fn solve(&self, steps: i32, until: usize) -> usize {
+    fn solve(&self, steps: usize, until: usize) -> usize {
         #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
         struct Position {
             valve: usize,
@@ -111,90 +116,83 @@ impl Solution {
             time: usize,
         }
 
-        let max = steps * self.1.iter().map(|x| x.flow_rate).max().unwrap_or(0);
-        let mut count = 0;
+        // a max possible flow reduction per step
+        // this is needed as we want to find the 'shortest path', where shortest means the most pressure released.
+        // we model this as `-flow_rate * time_remaining`, but A* doesn't like negative weighted edges,
+        // so we must use `max - flow_rate * time_remaining` instead.
+        let max = steps * self.valves.iter().map(|x| x.flow_rate).max().unwrap_or(0);
 
-        let dist = astar::astar(
+        let mut count = 0;
+        let res = astar::astar(
             &Position {
-                valve: self.0,
+                valve: self.start,
                 state: 0,
                 time: 0,
             },
-            |p| {
+            |&Position { valve, state, time }| {
                 count += 1;
-                let Position { valve, state, time } = *p;
-                let Valve {
-                    flow_rate,
-                    ref leads_to,
-                } = self.1[valve];
 
-                let valve_open = state | (1 << valve);
-                let rate = if state == valve_open {
-                    0
+                let iter = self.valves[valve]
+                    .leads_to
+                    .clone()
+                    .into_iter()
+                    // filter out leads that don't have enough time to process
+                    .filter(move |(_, t)| {
+                        // new time will be time it takes to travel, + 1 minute to open the valve
+                        let new_t = time + t + 1;
+
+                        (time < steps && new_t < steps) || (time >= steps && new_t < steps * 2)
+                    })
+                    // filter out leads that already have the valve open
+                    .filter(move |(lead, _)| (state >> lead) & 1 == 0)
+                    .map(move |(lead, t)| {
+                        let scale = (t + 1) * max;
+                        let flow = self.valves[lead].flow_rate;
+
+                        let new_t = time + t + 1;
+                        let time_remaining = steps - 1 - (new_t % steps);
+                        (
+                            Position {
+                                valve: lead,
+                                time: new_t,
+                                state: state | 1 << lead,
+                            },
+                            scale - flow * time_remaining,
+                        )
+                    });
+
+                // support edge case where there's no possible moves to make in time
+                let idle = if time < steps && steps < until {
+                    // if we have the elephant path afterwards, fast forward to that
+                    (
+                        Position {
+                            valve: self.start,
+                            time: steps,
+                            state,
+                        },
+                        (steps - time - 1) * max,
+                    )
                 } else {
-                    flow_rate * (steps - 1 - (time as i32) % steps)
+                    // fast forward to finished time
+                    (
+                        Position {
+                            valve,
+                            time: until - 1,
+                            state,
+                        },
+                        (until - time - 1) * max,
+                    )
                 };
-
-                let identity = std::iter::once((
-                    Position {
-                        valve: p.valve,
-                        state: valve_open,
-                        time: time + 1,
-                    },
-                    max - rate,
-                ));
-
-                struct Iter {
-                    leads_to: arrayvec::IntoIter<(usize, usize), 64>,
-                    time: usize,
-                    state: u64,
-                    max: i32,
-                    steps: usize,
-                }
-
-                impl Iterator for Iter {
-                    type Item = (Position, i32);
-                    fn next(&mut self) -> Option<Self::Item> {
-                        loop {
-                            let (lead, t) = self.leads_to.next()?;
-                            if (self.state >> lead) & 1 == 1 {
-                                continue;
-                            }
-
-                            if (self.time < self.steps && self.time + t >= self.steps)
-                                || (self.time >= self.steps && self.time + t >= self.steps * 2)
-                            {
-                                continue;
-                            }
-
-                            break Some((
-                                Position {
-                                    valve: lead,
-                                    time: self.time + t,
-                                    state: self.state,
-                                },
-                                self.max * t as i32,
-                            ));
-                        }
-                    }
-                }
-
-                identity.chain(Iter {
-                    leads_to: leads_to.clone().into_iter(),
-                    time,
-                    state,
-                    max,
-                    steps: steps as usize,
-                })
+                iter.chain(std::iter::once(idle))
             },
             |p| {
                 // assuming that our self.1 is sorted from most to least flow
                 // and for the heuristic, assume that we can make it to each valve in 2 time step
                 let mut time_remaining = until - p.time;
-                let mut flow_remaining = max * time_remaining as i32;
-                for (i, valve) in self.1.iter().enumerate() {
+                let mut flow_remaining = max * time_remaining;
+                for (i, valve) in self.valves.iter().enumerate() {
                     if (p.state >> i) & 1 == 0 {
-                        flow_remaining -= valve.flow_rate * time_remaining as i32;
+                        flow_remaining -= valve.flow_rate * time_remaining;
                         if time_remaining < 2 {
                             break;
                         }
@@ -205,11 +203,21 @@ impl Solution {
             },
             |p| p.time + 1 == until,
         )
-        .unwrap()
-        .1;
+        .unwrap();
 
         // dbg!(count);
-        (until - 1) * (max as usize) - (dist as usize)
+
+        // this should be roughly `(max * steps) - res.1` but that's giving me different answers for some reason...
+        let mut total = 0;
+        for i in &res.0[..res.0.len() - 1] {
+            let flow = self.valves[i.valve].flow_rate;
+            if i.time < steps {
+                total += flow * (steps - i.time);
+            } else {
+                total += flow * (until - i.time);
+            }
+        }
+        total
     }
 }
 
