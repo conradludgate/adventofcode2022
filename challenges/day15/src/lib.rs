@@ -42,12 +42,20 @@ impl<const N: i32> Challenge for Solution<N> {
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
         let mut ranges: Vec<Range<i32>> = Vec::with_capacity(self.0.len());
+        let mut beacons = self
+            .0
+            .iter()
+            .filter(|x| x.y2 == N / 2)
+            .map(|x| x.x2)
+            .collect::<Vec<_>>();
+        beacons.sort();
+        beacons.dedup();
 
         self.build_range(N / 2, &mut ranges, i32::MIN..i32::MAX)
             .iter()
             .map(|r| r.len())
             .sum::<usize>()
-            - 1 // not sure what that -1 is about tbh
+            - beacons.len()
     }
 
     type Output2 = usize;

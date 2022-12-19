@@ -122,7 +122,6 @@ impl Solution {
         // so we must use `max - flow_rate * time_remaining` instead.
         let max = steps * self.valves.iter().map(|x| x.flow_rate).max().unwrap_or(0);
 
-        let mut count = 0;
         let res = astar::astar(
             &Position {
                 valve: self.start,
@@ -130,8 +129,6 @@ impl Solution {
                 time: 0,
             },
             |&Position { valve, state, time }| {
-                count += 1;
-
                 let iter = self.valves[valve]
                     .leads_to
                     .clone()
@@ -204,8 +201,6 @@ impl Solution {
             |p| p.time + 1 == until,
         )
         .unwrap();
-
-        // dbg!(count);
 
         // this should be roughly `(max * steps) - res.1` but that's giving me different answers for some reason...
         let mut total = 0;
