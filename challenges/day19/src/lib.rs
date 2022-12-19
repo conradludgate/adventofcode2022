@@ -75,48 +75,135 @@ impl Blueprint {
                 obsidian_robots: 0,
                 geode_robots: 0,
             },
-            |s| {
-                let base = State {
-                    time: s.time + 1,
-                    ore: s.ore + s.ore_robots,
-                    clay: s.clay + s.clay_robots,
-                    obsidian: s.obsidian + s.obsidian_robots,
-                    geodes: s.geodes + s.geode_robots,
-                    ..*s
-                };
+            |&s| {
+                // let base = State {
+                //     time: s.time + 1,
+                //     ore: s.ore + s.ore_robots,
+                //     clay: s.clay + s.clay_robots,
+                //     obsidian: s.obsidian + s.obsidian_robots,
+                //     geodes: s.geodes + s.geode_robots,
+                //     ..*s
+                // };
 
-                let cost = 24 - s.geode_robots;
+                // let cost = 24 - s.geode_robots;
 
+                // build a robot now
                 // needs to be lazy to avoid underflows
                 #[allow(clippy::unnecessary_lazy_evaluations)]
-                [
+                let build_robots = [
                     (s.ore >= self.ore).then(|| State {
                         ore_robots: s.ore_robots + 1,
-                        ore: base.ore - self.ore,
-                        ..base
+                        ore: s.ore - self.ore,
+                        ..s
                     }),
                     (s.ore >= self.clay).then(|| State {
                         clay_robots: s.clay_robots + 1,
-                        ore: base.ore - self.clay,
-                        ..base
+                        ore: s.ore - self.clay,
+                        ..s
                     }),
                     (s.ore >= self.obsidian.0 && s.clay >= self.obsidian.1).then(|| State {
                         obsidian_robots: s.obsidian_robots + 1,
-                        ore: base.ore - self.obsidian.0,
-                        clay: base.clay - self.obsidian.1,
-                        ..base
+                        ore: s.ore - self.obsidian.0,
+                        clay: s.clay - self.obsidian.1,
+                        ..s
                     }),
                     (s.ore >= self.geode.0 && s.obsidian >= self.geode.1).then(|| State {
                         geode_robots: s.geode_robots + 1,
-                        ore: base.ore - self.geode.0,
-                        obsidian: base.obsidian - self.geode.1,
-                        ..base
+                        ore: s.ore - self.geode.0,
+                        obsidian: s.obsidian - self.geode.1,
+                        ..s
                     }),
-                ]
-                .into_iter()
-                .flatten()
-                .chain(std::iter::once(base))
-                .map(move |s| (s, cost))
+                ];
+
+                // fast forward to building a robot
+                #[allow(clippy::unnecessary_lazy_evaluations)]
+                let ff_build_robots = [
+                    (s.ore < self.ore).then(|| State {
+                        ore_robots: s.ore_robots + 1,
+                        ore: s.ore.wrapping_sub(self.ore),
+                        time: s.time + (self.ore - s.ore) / s.ore_robots,
+                        ..s
+                    }),
+                    (s.ore < self.clay).then(|| State {
+                        clay_robots: s.clay_robots + 1,
+                        ore: s.ore.wrapping_sub(self.clay),
+                        time: s.time + (self.clay - s.ore) / s.ore_robots,
+                        ..s
+                    }),
+                    (s.ore < self.obsidian.0 && s.clay >= self.obsidian.1).then(|| State {
+                        obsidian_robots: s.obsidian_robots + 1,
+                        ore: s.ore.wrapping_sub(self.obsidian.0),
+                        clay: s.clay.wrapping_sub(self.obsidian.1),
+                        time: s.time + (self.obsidian.0 - s.ore) / s.ore_robots,
+                        ..s
+                    }),
+                    (s.ore >= self.obsidian.0 && s.clay < self.obsidian.1 && s.clay_robots > 0)
+                        .then(|| State {
+                            obsidian_robots: s.obsidian_robots + 1,
+                            ore: s.ore.wrapping_sub(self.obsidian.0),
+                            clay: s.clay.wrapping_sub(self.obsidian.1),
+                            time: s.time + (self.obsidian.1 - s.clay) / s.clay_robots,
+                            ..s
+                        }),
+                    (s.ore < self.obsidian.0 && s.clay < self.obsidian.1 && s.clay_robots > 0)
+                        .then(|| State {
+                            obsidian_robots: s.obsidian_robots + 1,
+                            ore: s.ore.wrapping_sub(self.obsidian.0),
+                            clay: s.clay.wrapping_sub(self.obsidian.1),
+                            time: s.time
+                                + usize::max(
+                                    (self.obsidian.0 - s.ore) / s.ore_robots,
+                                    (self.obsidian.1 - s.clay) / s.clay_robots,
+                                ),
+                            ..s
+                        }),
+                    (s.ore < self.geode.0 && s.obsidian >= self.geode.1).then(|| State {
+                        geode_robots: s.geode_robots + 1,
+                        ore: s.ore.wrapping_sub(self.geode.0),
+                        obsidian: s.obsidian.wrapping_sub(self.geode.1),
+                        time: s.time + (self.geode.0 - s.ore) / s.ore_robots,
+                        ..s
+                    }),
+                    (s.ore >= self.geode.0 && s.obsidian < self.geode.1 && s.obsidian_robots > 0)
+                        .then(|| State {
+                            geode_robots: s.geode_robots + 1,
+                            ore: s.ore.wrapping_sub(self.geode.0),
+                            obsidian: s.obsidian.wrapping_sub(self.geode.1),
+                            time: s.time + (self.geode.1 - s.obsidian) / s.obsidian_robots,
+                            ..s
+                        }),
+                    (s.ore < self.geode.0 && s.obsidian < self.geode.1 && s.obsidian_robots > 0)
+                        .then(|| State {
+                            geode_robots: s.geode_robots + 1,
+                            ore: s.ore.wrapping_sub(self.geode.0),
+                            obsidian: s.obsidian.wrapping_sub(self.geode.1),
+                            time: s.time
+                                + usize::max(
+                                    (self.geode.0 - s.ore) / s.ore_robots,
+                                    (self.geode.1 - s.obsidian) / s.obsidian_robots,
+                                ),
+                            ..s
+                        }),
+                ];
+
+                build_robots
+                    .into_iter()
+                    .chain(ff_build_robots)
+                    .flatten()
+                    .map(move |s1| {
+                        let t = s1.time - s.time + 1;
+                        (
+                            State {
+                                time: s1.time + 1,
+                                ore: s.ore.wrapping_add(s.ore_robots * t),
+                                clay: s.clay.wrapping_add(s.clay_robots * t),
+                                obsidian: s.obsidian.wrapping_add(s.obsidian_robots * t),
+                                geodes: s.geodes.wrapping_add(s.geode_robots * t),
+                                ..s1
+                            },
+                            (24 - s.geode_robots) * t,
+                        )
+                    })
             },
             |s| s.time == 23,
         )
@@ -124,6 +211,7 @@ impl Blueprint {
 
         let mut count = 0;
         for i in res.0 {
+            dbg!(i);
             count += i.geode_robots;
         }
         dbg!(count);

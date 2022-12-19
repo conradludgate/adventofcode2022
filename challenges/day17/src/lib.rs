@@ -1,10 +1,6 @@
-#![feature(iterator_try_reduce, control_flow_enum)]
-use core::panic;
-use std::ops::ControlFlow;
-
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
-use pathfinding::prelude::{brent, floyd};
+use pathfinding::prelude::brent;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Solution(&'static [u8]);
@@ -43,59 +39,8 @@ impl Challenge for Solution {
         let mut stack_height = 0usize;
 
         for piece in 0..2022 {
-            // current offset from the left of our falling piece
-            let mut x = 2;
-            let mut y = stack_height + 3;
-            let (mut bits, width, height) = PIECES[piece % 5];
-
-            loop {
-                // move horizontally
-                {
-                    let jet_left = self.0[i] == b'<';
-                    i += 1;
-                    i %= self.0.len();
-
-                    let (x1, new_bits) = if jet_left && x > 0 {
-                        (x - 1, bits.map(|x| x << 1))
-                    } else if !jet_left && x + width < 7 {
-                        (x + 1, bits.map(|x| x >> 1))
-                    } else {
-                        (x, bits)
-                    };
-                    let chunk = u32::from_ne_bytes(bitset[y..y + 4].try_into().unwrap());
-                    let mask = u32::from_ne_bytes(new_bits);
-
-                    if chunk & mask == 0 {
-                        (x, bits) = (x1, new_bits);
-                    }
-                }
-
-                // attempt to move down vertically
-                {
-                    if y > 0 {
-                        let chunk = u32::from_ne_bytes(bitset[y - 1..y + 3].try_into().unwrap());
-                        let mask = u32::from_ne_bytes(bits);
-                        if chunk & mask == 0 {
-                            y -= 1;
-                            continue;
-                        }
-                    }
-
-                    for (c, m) in bitset[y..y + 4].iter_mut().zip(bits) {
-                        *c |= m;
-                    }
-                    stack_height = usize::max(stack_height, y + height as usize);
-                    if bitset.len() < stack_height + 7 {
-                        bitset.resize(stack_height + 7, 0)
-                    }
-                    break;
-                }
-            }
+            (i, stack_height) = self.drop_block(piece % 5, i, stack_height, &mut bitset)
         }
-
-        // for b in bitset.into_iter().rev() {
-        //     println!("{b:07b}");
-        // }
 
         stack_height
     }
@@ -105,158 +50,97 @@ impl Challenge for Solution {
         let mut bitset = Vec::<u8>::with_capacity(self.0.len() * 360);
         bitset.resize(3 + 4, 0);
 
-        // index in our jet cycle
-        let mut i = 0;
-
-        // current height of our stack
-        let mut stack_height = 0usize;
-
-        let mut total_block_falls = 1_000_000_000_000_usize; // trillion
-
-        let mut indices = vec![];
-        let mut heights = vec![];
-
-        for piece in 0..self.0.len() * 60 {
-            indices.push(i);
-            heights.push(stack_height);
-
-            // current offset from the left of our falling piece
-            let mut x = 2;
-            let mut y = stack_height + 3;
-            let (mut bits, width, height) = PIECES[piece % 5];
-
-            loop {
-                // move horizontally
-                {
-                    let jet_left = self.0[i] == b'<';
-                    i += 1;
-                    i %= self.0.len();
-
-                    let (x1, new_bits) = if jet_left && x > 0 {
-                        (x - 1, bits.map(|x| x << 1))
-                    } else if !jet_left && x + width < 7 {
-                        (x + 1, bits.map(|x| x >> 1))
-                    } else {
-                        (x, bits)
-                    };
-                    let chunk = u32::from_ne_bytes(bitset[y..y + 4].try_into().unwrap());
-                    let mask = u32::from_ne_bytes(new_bits);
-
-                    if chunk & mask == 0 {
-                        (x, bits) = (x1, new_bits);
-                    }
-                }
-
-                // attempt to move down vertically
-                {
-                    if y > 0 {
-                        let chunk = u32::from_ne_bytes(bitset[y - 1..y + 3].try_into().unwrap());
-                        let mask = u32::from_ne_bytes(bits);
-                        if chunk & mask == 0 {
-                            y -= 1;
-                            continue;
-                        }
-                    }
-
-                    for (c, m) in bitset[y..y + 4].iter_mut().zip(bits) {
-                        *c |= m;
-                    }
-                    stack_height = usize::max(stack_height, y + height as usize);
-                    if bitset.len() < stack_height + 7 {
-                        bitset.resize(stack_height + 7, 0)
-                    }
-                    break;
-                }
+        // magic number that is enough for my input
+        const MAX: usize = 35;
+        let (len, s, mu) = brent((0, 0, 0, vec![0; 7]), |(p, i, sh, mut bs)| {
+            let (i, mut sh) = self.drop_block(p, i, sh, &mut bs);
+            if sh > MAX * 2 {
+                sh -= MAX;
+                bs.drain(..MAX);
             }
-        }
+            ((p + 1) % 5, i, sh, bs)
+        });
 
-        let mut cycle_len = 1;
-        let value = loop {
-            let mut i = 0;
-            let (ControlFlow::Continue(Some(a)) | ControlFlow::Break(a)) = indices.rchunks_exact(cycle_len).try_reduce(|a, b| {
-                if a == b {
-                    i += 1;
-                    ControlFlow::Continue(b)
+        let sh = s.2;
+        let height_per_cycle = (0..len)
+            .fold(s, |(p, i, sh, mut bs), _| {
+                let (i, sh) = self.drop_block(p, i, sh, &mut bs);
+                ((p + 1) % 5, i, sh, bs)
+            })
+            .2
+            - sh;
+
+        let total_block_falls = 1_000_000_000_000_usize - mu; // trillion
+        let in_cycle = total_block_falls / len;
+        let out_of_cycle = total_block_falls % len;
+        let extra_stack_height = in_cycle * height_per_cycle;
+
+        let initial =
+            (0..mu + out_of_cycle).fold((0, 0, 0, vec![0; 7]), |(p, i, sh, mut bs), _| {
+                let (i, sh) = self.drop_block(p, i, sh, &mut bs);
+                ((p + 1) % 5, i, sh, bs)
+            });
+
+        initial.2 + extra_stack_height
+    }
+}
+
+impl Solution {
+    fn drop_block(
+        &self,
+        piece: usize,
+        mut i: usize,
+        stack_height: usize,
+        bitset: &mut Vec<u8>,
+    ) -> (usize, usize) {
+        // current offset from the left of our falling piece
+        let mut x = 2;
+        let mut y = stack_height + 3;
+        let (mut bits, width, height) = PIECES[piece];
+
+        loop {
+            // move horizontally
+            {
+                let jet_left = self.0[i] == b'<';
+                i += 1;
+                i %= self.0.len();
+
+                let (x1, new_bits) = if jet_left && x > 0 {
+                    (x - 1, bits.map(|x| x << 1))
+                } else if !jet_left && x + width < 7 {
+                    (x + 1, bits.map(|x| x >> 1))
                 } else {
-                    ControlFlow::Break(a)
+                    (x, bits)
+                };
+                let chunk = u32::from_ne_bytes(bitset[y..y + 4].try_into().unwrap());
+                let mask = u32::from_ne_bytes(new_bits);
+
+                if chunk & mask == 0 {
+                    (x, bits) = (x1, new_bits);
                 }
-            }) else { panic!("sorry") };
-            if i > 5 {
-                println!("{i} {a:?}");
-                break a;
             }
-            cycle_len += 1;
-            if cycle_len > indices.len() {
-                panic!("sorry");
-            }
-        };
 
-        let a = heights[heights.len()-1];
-        let b = heights[heights.len()-value.len()-1];
-        let height_per_cycle = a-b;// iterations * self.0.len();
-        let blocks_per_cycle = value.len();
-
-        dbg!(height_per_cycle, blocks_per_cycle, height_per_cycle%blocks_per_cycle);
-
-        total_block_falls -= self.0.len() * 60;
-
-        let in_cycle = total_block_falls / blocks_per_cycle;
-        let out_of_cycle = total_block_falls % blocks_per_cycle;
-
-        let extra_stack_height = dbg!(in_cycle * height_per_cycle);
-
-        for piece in 0..out_of_cycle {
-            // current offset from the left of our falling piece
-            let mut x = 2;
-            let mut y = stack_height + 3;
-            let (mut bits, width, height) = PIECES[piece % 5];
-
-            loop {
-                // move horizontally
-                {
-                    let jet_left = self.0[i] == b'<';
-                    i += 1;
-                    i %= self.0.len();
-
-                    let (x1, new_bits) = if jet_left && x > 0 {
-                        (x - 1, bits.map(|x| x << 1))
-                    } else if !jet_left && x + width < 7 {
-                        (x + 1, bits.map(|x| x >> 1))
-                    } else {
-                        (x, bits)
-                    };
-                    let chunk = u32::from_ne_bytes(bitset[y..y + 4].try_into().unwrap());
-                    let mask = u32::from_ne_bytes(new_bits);
-
+            // attempt to move down vertically
+            {
+                if y > 0 {
+                    let chunk = u32::from_ne_bytes(bitset[y - 1..y + 3].try_into().unwrap());
+                    let mask = u32::from_ne_bytes(bits);
                     if chunk & mask == 0 {
-                        (x, bits) = (x1, new_bits);
+                        y -= 1;
+                        continue;
                     }
                 }
 
-                // attempt to move down vertically
-                {
-                    if y > 0 {
-                        let chunk = u32::from_ne_bytes(bitset[y - 1..y + 3].try_into().unwrap());
-                        let mask = u32::from_ne_bytes(bits);
-                        if chunk & mask == 0 {
-                            y -= 1;
-                            continue;
-                        }
-                    }
-
-                    for (c, m) in bitset[y..y + 4].iter_mut().zip(bits) {
-                        *c |= m;
-                    }
-                    stack_height = usize::max(stack_height, y + height as usize);
-                    if bitset.len() < stack_height + 7 {
-                        bitset.resize(stack_height + 7, 0)
-                    }
-                    break;
+                for (c, m) in bitset[y..y + 4].iter_mut().zip(bits) {
+                    *c |= m;
                 }
+                let stack_height = usize::max(stack_height, y + height as usize);
+                if bitset.len() < stack_height + 7 {
+                    bitset.resize(stack_height + 7, 0)
+                }
+                break (i, stack_height);
             }
         }
-
-        dbg!(stack_height + extra_stack_height)
     }
 }
 
