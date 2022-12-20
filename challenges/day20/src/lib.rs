@@ -23,12 +23,16 @@ impl Challenge for Solution {
         let mut mixed = self.0;
         for i in 0..mixed.len() {
             let j = mixed.iter().position(|x| x.0 == i).unwrap();
-            let (i, v) = mixed.remove(j);
+            let v = mixed[j].1;
 
-            let n = mixed.len();
-            let j = n.wrapping_add_signed((v.wrapping_add_unsigned(j)) % (n as isize)) % n;
+            let n = mixed.len() - 1;
+            let j1 = n.wrapping_add_signed((v.wrapping_add_unsigned(j)) % (n as isize)) % n;
 
-            mixed.insert(j, (i, v));
+            match j1.cmp(&j) {
+                std::cmp::Ordering::Less => mixed[j1..j + 1].rotate_right(1),
+                std::cmp::Ordering::Equal => {}
+                std::cmp::Ordering::Greater => mixed[j..j1 + 1].rotate_left(1),
+            }
         }
 
         let Some(j) = mixed.iter().position(|x| x.1 == 0) else { return 0 };
@@ -43,13 +47,16 @@ impl Challenge for Solution {
         for _ in 0..10 {
             for i in 0..mixed.len() {
                 let j = mixed.iter().position(|x| x.0 == i).unwrap();
-                let (i, v) = mixed.remove(j);
+                let v = mixed[j].1 * 811589153;
 
-                let n = mixed.len();
-                let v1 = v * 811589153;
-                let j = n.wrapping_add_signed((v1.wrapping_add_unsigned(j)) % (n as isize)) % n;
+                let n = mixed.len() - 1;
+                let j1 = n.wrapping_add_signed((v.wrapping_add_unsigned(j)) % (n as isize)) % n;
 
-                mixed.insert(j, (i, v));
+                match j1.cmp(&j) {
+                    std::cmp::Ordering::Less => mixed[j1..j + 1].rotate_right(1),
+                    std::cmp::Ordering::Equal => {}
+                    std::cmp::Ordering::Greater => mixed[j..j1 + 1].rotate_left(1),
+                }
             }
         }
 
