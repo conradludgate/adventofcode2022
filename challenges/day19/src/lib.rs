@@ -1,5 +1,5 @@
 use aoc::{Challenge, Parser as ChallengeParser};
-use nom::{bytes::complete::tag, IResult, Parser};
+use nom::IResult;
 use pathfinding::prelude::dijkstra;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
