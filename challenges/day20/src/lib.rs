@@ -1,12 +1,16 @@
 use aoc::{Challenge, Parser as ChallengeParser};
-use nom::{bytes::complete::tag, IResult, Parser};
+use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(Vec<isize>);
+pub struct Solution(Vec<(usize, isize)>);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        let output = input.lines().flat_map(|line| line.parse().ok()).collect();
+        let output = input
+            .lines()
+            .flat_map(|line| line.parse().ok())
+            .enumerate()
+            .collect();
         Ok(("", Self(output)))
     }
 }
@@ -16,9 +20,8 @@ impl Challenge for Solution {
 
     type Output1 = isize;
     fn part_one(self) -> Self::Output1 {
-        let n = self.0.len();
-        let mut mixed = self.0.iter().copied().enumerate().collect::<Vec<_>>();
-        for i in 0..n {
+        let mut mixed = self.0;
+        for i in 0..mixed.len() {
             let j = mixed.iter().position(|x| x.0 == i).unwrap();
             let (i, v) = mixed.remove(j);
 
@@ -36,24 +39,25 @@ impl Challenge for Solution {
 
     type Output2 = isize;
     fn part_two(self) -> Self::Output2 {
-        let n = self.0.len();
-        let mut mixed = self.0.iter().map(|x| *x * 811589153).enumerate().collect::<Vec<_>>();
+        let mut mixed = self.0;
         for _ in 0..10 {
-            for i in 0..n {
+            for i in 0..mixed.len() {
                 let j = mixed.iter().position(|x| x.0 == i).unwrap();
                 let (i, v) = mixed.remove(j);
-    
+
                 let n = mixed.len();
-                let j = n.wrapping_add_signed((v.wrapping_add_unsigned(j)) % (n as isize)) % n;
-    
+                let v1 = v * 811589153;
+                let j = n.wrapping_add_signed((v1.wrapping_add_unsigned(j)) % (n as isize)) % n;
+
                 mixed.insert(j, (i, v));
             }
         }
 
         let Some(j) = mixed.iter().position(|x| x.1 == 0) else { return 0 };
-        mixed[(j + 1000) % mixed.len()].1
+        (mixed[(j + 1000) % mixed.len()].1
             + mixed[(j + 2000) % mixed.len()].1
-            + mixed[(j + 3000) % mixed.len()].1
+            + mixed[(j + 3000) % mixed.len()].1)
+            * 811589153
     }
 }
 
