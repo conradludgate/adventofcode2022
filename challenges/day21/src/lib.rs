@@ -84,10 +84,8 @@ impl ChallengeParser for Solution {
         let Expr::Val(human) = monkeys[&HUMN] else { panic!("humn wasn't an integer value") };
         let Expr::Op(op, lhs, rhs) = monkeys[&ROOT] else { panic!("root wasn't an operation") };
 
-        let mut cache = FxHashMap::with_capacity_and_hasher(monkeys.len(), Default::default());
-
-        let lhs = build_poly(lhs, &monkeys, &mut cache);
-        let rhs = build_poly(rhs, &monkeys, &mut cache);
+        let lhs = build_poly(lhs, &monkeys);
+        let rhs = build_poly(rhs, &monkeys);
 
         Ok((
             "",
@@ -101,32 +99,19 @@ impl ChallengeParser for Solution {
     }
 }
 
-fn build_poly(
-    op: [u8; 4],
-    equation: &FxHashMap<[u8; 4], Expr>,
-    cache: &mut FxHashMap<[u8; 4], Option<Poly>>,
-) -> Poly {
-    match cache.entry(op) {
-        std::collections::hash_map::Entry::Occupied(p) => {
-            return p.get().as_ref().expect("cycle detected").clone()
-        }
-        std::collections::hash_map::Entry::Vacant(p) => p.insert(None),
-    };
-
-    let res = if op == HUMN {
+fn build_poly(op: [u8; 4], equation: &FxHashMap<[u8; 4], Expr>) -> Poly {
+    if op == HUMN {
         Poly::x()
     } else {
         match equation[&op] {
             Expr::Op(op, lhs, rhs) => {
-                let lhs = build_poly(lhs, equation, cache);
-                let rhs = build_poly(rhs, equation, cache);
+                let lhs = build_poly(lhs, equation);
+                let rhs = build_poly(rhs, equation);
                 Poly::apply(op, lhs, rhs)
             }
             Expr::Val(x) => Poly::from(Rational::from(x)),
         }
-    };
-    cache.insert(op, Some(res.clone()));
-    res
+    }
 }
 
 impl Poly {
