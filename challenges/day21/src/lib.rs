@@ -36,7 +36,7 @@ enum Expr {
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        let mut monkeys = FxHashMap::with_hasher(Default::default());
+        let mut monkeys = FxHashMap::with_capacity_and_hasher(input.len() / 8, Default::default());
 
         let mut input = input.as_bytes();
         while input.len() > 6 {
@@ -45,8 +45,7 @@ impl ChallengeParser for Solution {
             (name, input) = input.split_array_ref();
             let name = *name;
 
-            let op = input.get(7);
-            let op = match op {
+            let op = match input.get(7) {
                 Some(b'*') => Some(Op::Mul),
                 Some(b'/') => Some(Op::Div),
                 Some(b'+') => Some(Op::Add),
@@ -63,7 +62,7 @@ impl ChallengeParser for Solution {
                     Expr::Op(op, lhs, rhs)
                 }
                 None => {
-                    // assumed: input numbers are at most 4 digits
+                    // assumed: input numbers are at most 4 digits to fit in u16
                     let nl = input.iter().position(|b| *b == b'\n').unwrap();
                     let n;
                     (n, input) = input.split_at(nl + 1);
@@ -75,10 +74,7 @@ impl ChallengeParser for Solution {
                     Expr::Val(v)
                 }
             };
-
-            if monkeys.insert(name, res).is_some() {
-                panic!("dupes?")
-            };
+            monkeys.insert(name, res);
         }
 
         let Expr::Val(human) = monkeys[&HUMN] else { panic!("humn wasn't an integer value") };

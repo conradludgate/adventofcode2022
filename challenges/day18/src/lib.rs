@@ -25,7 +25,7 @@ impl Challenge for Solution {
         let mut area = 6;
         self.0.sort_unstable_by_key(|&(a, b, c)| (a, b, c));
         self.0.iter().copied().reduce(|x, y| {
-            let check_last = (x.0, x.1, x.2+1);
+            let check_last = (x.0, x.1, x.2 + 1);
             if y != check_last {
                 area += 2;
             }
@@ -34,7 +34,7 @@ impl Challenge for Solution {
 
         self.0.sort_unstable_by_key(|&(a, b, c)| (a, c, b));
         self.0.iter().copied().reduce(|x, y| {
-            let check_last = (x.0, x.1+1, x.2);
+            let check_last = (x.0, x.1 + 1, x.2);
             if y != check_last {
                 area += 2;
             }
@@ -43,7 +43,7 @@ impl Challenge for Solution {
 
         self.0.sort_unstable_by_key(|&(a, b, c)| (b, c, a));
         self.0.iter().copied().reduce(|x, y| {
-            let check_last = (x.0+1, x.1, x.2);
+            let check_last = (x.0 + 1, x.1, x.2);
             if y != check_last {
                 area += 2;
             }

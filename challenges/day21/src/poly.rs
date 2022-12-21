@@ -7,7 +7,7 @@ use crate::rational::Rational;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Poly {
-    mantissa: TinyVec<[Rational; 2]>,
+    mantissa: TinyVec<[Rational; 4]>,
     exponent: isize,
 }
 
