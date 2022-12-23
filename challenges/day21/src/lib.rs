@@ -10,9 +10,6 @@ use crate::rational::Rational;
 mod poly;
 mod rational;
 
-const HUMN: [u8; 4] = *b"humn";
-const ROOT: [u8; 4] = *b"root";
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct Solution {
     human: u16,
@@ -77,8 +74,8 @@ impl ChallengeParser for Solution {
             monkeys.insert(name, res);
         }
 
-        let Expr::Val(human) = monkeys[&HUMN] else { panic!("humn wasn't an integer value") };
-        let Expr::Op(op, lhs, rhs) = monkeys[&ROOT] else { panic!("root wasn't an operation") };
+        let Expr::Val(human) = monkeys[b"humn"] else { panic!("humn wasn't an integer value") };
+        let Expr::Op(op, lhs, rhs) = monkeys[b"root"] else { panic!("root wasn't an operation") };
 
         let lhs = build_poly(lhs, &monkeys);
         let rhs = build_poly(rhs, &monkeys);
@@ -96,7 +93,7 @@ impl ChallengeParser for Solution {
 }
 
 fn build_poly(op: [u8; 4], equation: &FxHashMap<[u8; 4], Expr>) -> Poly {
-    if op == HUMN {
+    if op == *b"humn" {
         Poly::x()
     } else {
         match equation[&op] {
