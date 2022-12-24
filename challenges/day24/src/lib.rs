@@ -1,34 +1,52 @@
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
-use pathfinding::prelude::{astar, bfs, dijkstra};
+use pathfinding::prelude::astar;
 
-const N: u8 = 1;
-const E: u8 = 2;
-const S: u8 = 4;
-const W: u8 = 8;
+const N: u8 = b'^';
+const E: u8 = b'>';
+const S: u8 = b'v';
+const W: u8 = b'<';
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution(Vec<u8>, usize);
+pub struct Solution(usize, usize);
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Input(&'static [u8], usize);
 
 impl ChallengeParser for Solution {
     fn parse(input: &'static str) -> IResult<&'static str, Self> {
-        let mut state = Vec::with_capacity(input.len());
+        // let mut state = Vec::with_capacity(input.len());
 
-        let line_len = input.bytes().position(|b| b == b'\n').unwrap() + 1;
-        for chunk in input.as_bytes()[line_len..input.len() - line_len].chunks(line_len) {
-            for v in &chunk[1..line_len - 2] {
-                let v = match v {
-                    b'^' => N,
-                    b'>' => E,
-                    b'v' => S,
-                    b'<' => W,
-                    _ => 0,
-                };
-                state.push(v);
-            }
-        }
+        let row_len = input.bytes().position(|b| b == b'\n').unwrap() + 1;
+        let i = Input(input.as_bytes(), row_len);
+        let column_len = input.len() / row_len;
 
-        Ok(("", Self(state, line_len - 3)))
+        let x = i.solve(
+            State {
+                minute: 0,
+                x: 1,
+                y: 0,
+            },
+            (row_len - 3, column_len - 1),
+        );
+        let y = i.solve(
+            State {
+                minute: x,
+                x: row_len - 3,
+                y: column_len - 1,
+            },
+            (1, 0),
+        );
+        let z = i.solve(
+            State {
+                minute: x + y,
+                x: 1,
+                y: 0,
+            },
+            (row_len - 3, column_len - 1),
+        );
+
+        Ok(("", Self(x, x + y + z)))
     }
 }
 
@@ -37,49 +55,12 @@ impl Challenge for Solution {
 
     type Output1 = usize;
     fn part_one(self) -> Self::Output1 {
-        let Self(ref state, row_len) = self;
-        let column_len = state.len() / row_len;
-
-        self.solve(
-            State {
-                minute: 0,
-                x: 0,
-                y: 0,
-            },
-            (row_len - 1, column_len + 1),
-        )
+        self.0
     }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-        let Self(ref state, row_len) = self;
-        let column_len = state.len() / row_len;
-
-        let x = self.solve(
-            State {
-                minute: 0,
-                x: 0,
-                y: 0,
-            },
-            (row_len - 1, column_len + 1),
-        );
-        let y = self.solve(
-            State {
-                minute: x,
-                x: row_len - 1,
-                y: column_len + 1,
-            },
-            (0, 0),
-        );
-        let z = self.solve(
-            State {
-                minute: x + y,
-                x: 0,
-                y: 0,
-            },
-            (row_len - 1, column_len + 1),
-        );
-        x + y + z
+        self.1
     }
 }
 
@@ -90,19 +71,18 @@ struct State {
     y: usize,
 }
 
-impl Solution {
+impl Input {
     fn solve(&self, start: State, goal: (usize, usize)) -> usize {
-        let Self(ref state, row_len) = *self;
+        let Self(state, row_len) = *self;
         let column_len = state.len() / row_len;
 
         astar(
             &start,
             |s| {
                 let min = s.minute + 1;
-                let state = state.as_slice();
                 let xy = [
-                    (s.x.checked_sub(1), Some(s.y)), // left
-                    (s.x.checked_add(1), Some(s.y)), // right
+                    (Some(s.x - 1), Some(s.y)),      // left
+                    (Some(s.x + 1), Some(s.y)),      // right
                     (Some(s.x), s.y.checked_sub(1)), // up
                     (Some(s.x), s.y.checked_add(1)), // down
                     (Some(s.x), Some(s.y)),          // wait
@@ -110,30 +90,33 @@ impl Solution {
                 .into_iter()
                 .filter_map(|(x, y)| x.zip(y))
                 .filter(move |&(x, y)| {
-                    if x >= row_len {
+                    // boundary conditions
+                    if x == 0 || x + 3 > row_len {
                         return false;
                     }
                     if y == 0 {
-                        return x == 0;
+                        return x == 1;
                     }
-                    let y = y - 1;
-                    if y == column_len {
-                        return x + 1 == row_len;
+                    if y + 1 == column_len {
+                        return x + 3 == row_len;
                     }
-                    if y > column_len {
+                    if y >= column_len {
                         return false;
                     }
 
-                    let east_index = (x + row_len - (min % row_len)) % row_len;
-                    let west_index = (x + min) % row_len;
+                    let rl = row_len - 3;
+                    let cl = column_len - 2;
 
-                    let south_index = (y + column_len - (min % column_len)) % column_len;
-                    let north_index = (y + min) % column_len;
+                    let east_index = (x - 1 + rl - (min % rl)) % rl;
+                    let west_index = (x - 1 + min) % rl;
 
-                    state[y * row_len + east_index] != E
-                        && state[y * row_len + west_index] != W
-                        && state[x + north_index * row_len] != N
-                        && state[x + south_index * row_len] != S
+                    let south_index = (y - 1 + cl - (min % cl)) % cl;
+                    let north_index = (y - 1 + min) % cl;
+
+                    state[y * row_len + east_index + 1] != E
+                        && state[y * row_len + west_index + 1] != W
+                        && state[x + north_index * row_len + row_len] != N
+                        && state[x + south_index * row_len + row_len] != S
                 });
 
                 let min = s.minute + 1;
