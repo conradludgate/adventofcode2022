@@ -13,6 +13,7 @@ next-gen = "0.1.1"
 arrayvec = "0.7"
 bytemuck = "1"
 pathfinding = "4"
+fxhash = "0.2"
 
 [dev-dependencies]
 criterion = "0.4"

@@ -1,4 +1,5 @@
 use aoc::{Challenge, Parser as ChallengeParser};
+use fxhash::FxHashSet;
 use nom::IResult;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -53,8 +54,41 @@ impl Challenge for Solution {
     }
 
     type Output2 = usize;
-    fn part_two(self) -> Self::Output2 {
-        0
+    fn part_two(mut self) -> Self::Output2 {
+        let mut air_bubbles = FxHashSet::with_capacity_and_hasher(20 * 20 * 20, <_>::default());
+        let mut outer_bubbles = FxHashSet::with_capacity_and_hasher(20 * 20 * 20, <_>::default());
+        for x in 0..20 {
+            for y in 0..20 {
+                for z in 0..20 {
+                    if !self.0.contains(&(x, y, z)) {
+                        air_bubbles.insert((x, y, z));
+                    }
+                }
+            }
+        }
+
+        loop {
+            let Some(&first) = air_bubbles.iter().find(|&&(x, y, z)| {
+                if x == 0 || y == 0 || z == 0 || x == 19 || y == 19 || z == 19 {
+                    return true;
+                }
+
+                let dirs = [(255, 0, 0), (1, 0, 0), (0, 255, 0), (0, 1, 0), (0, 0, 255), (0, 0, 1)];
+                for (x1, y1, z1) in dirs {
+                    if outer_bubbles.contains(&(x.wrapping_add(x1),y.wrapping_add(y1),z.wrapping_add(z1))) {
+                        return true
+                    }
+                }
+                false
+            }) else { break };
+
+            air_bubbles.remove(&first);
+            outer_bubbles.insert(first);
+        }
+
+        self.0.extend(air_bubbles);
+
+        self.part_one()
     }
 }
 
@@ -93,6 +127,6 @@ mod tests {
     #[test]
     fn part_two() {
         let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        assert_eq!(output.part_two(), 58);
     }
 }
