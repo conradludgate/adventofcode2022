@@ -1,17 +1,60 @@
+use std::{num::NonZeroUsize, ops};
+
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
 use pathfinding::prelude::dijkstra;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Blueprint {
-    // cost in ore
+    ore: Vector,
+    clay: Vector,
+    obsidian: Vector,
+    geode: Vector,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy, Default, Hash, Eq)]
+struct Vector {
     ore: usize,
-    // cost in ore
     clay: usize,
-    // cost in (ore, clay)
-    obsidian: (usize, usize),
-    // cost in (ore, obsidian)
-    geode: (usize, usize),
+    obsidian: usize,
+    geode: usize,
+}
+
+impl ops::Add for Vector {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            ore: self.ore + rhs.ore,
+            clay: self.clay + rhs.clay,
+            obsidian: self.obsidian + rhs.obsidian,
+            geode: self.geode + rhs.geode,
+        }
+    }
+}
+impl ops::Sub for Vector {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            ore: self.ore - rhs.ore,
+            clay: self.clay - rhs.clay,
+            obsidian: self.obsidian - rhs.obsidian,
+            geode: self.geode - rhs.geode,
+        }
+    }
+}
+impl ops::Mul<usize> for Vector {
+    type Output = Self;
+
+    fn mul(self, rhs: usize) -> Self::Output {
+        Self {
+            ore: self.ore * rhs,
+            clay: self.clay * rhs,
+            obsidian: self.obsidian * rhs,
+            geode: self.geode * rhs,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -31,16 +74,24 @@ impl ChallengeParser for Solution {
             let Some((geode_cost_ore, geode_cost_obsidian)) = geode_cost.split_once(" ore and ") else { continue };
 
             bp.push(Blueprint {
-                ore: ore_cost.parse().unwrap(),
-                clay: clay_cost.parse().unwrap(),
-                obsidian: (
-                    obsidian_cost_ore.parse().unwrap(),
-                    obsidian_cost_clay.parse().unwrap(),
-                ),
-                geode: (
-                    geode_cost_ore.parse().unwrap(),
-                    geode_cost_obsidian.parse().unwrap(),
-                ),
+                ore: Vector {
+                    ore: ore_cost.parse().unwrap(),
+                    ..<_>::default()
+                },
+                clay: Vector {
+                    ore: clay_cost.parse().unwrap(),
+                    ..<_>::default()
+                },
+                obsidian: Vector {
+                    ore: obsidian_cost_ore.parse().unwrap(),
+                    clay: obsidian_cost_clay.parse().unwrap(),
+                    ..<_>::default()
+                },
+                geode: Vector {
+                    ore: geode_cost_ore.parse().unwrap(),
+                    obsidian: geode_cost_obsidian.parse().unwrap(),
+                    ..<_>::default()
+                },
             });
         }
 
@@ -53,171 +104,140 @@ impl Blueprint {
         #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
         struct State {
             time: usize,
-            ore: usize,
-            clay: usize,
-            obsidian: usize,
-            geodes: usize,
-            ore_robots: usize,
-            clay_robots: usize,
-            obsidian_robots: usize,
-            geode_robots: usize,
+            store: Vector,
+            production: Vector,
         }
+
+        impl State {
+            /// what's the minimum time we should wait until we can afford the cost and build the robot
+            fn wait_for(&self, cost: Vector) -> Option<usize> {
+                fn wait_for(current: usize, cost: usize, production_rate: usize) -> Option<usize> {
+                    let remaining = cost.saturating_sub(current);
+                    if remaining > 0 {
+                        NonZeroUsize::new(production_rate)
+                            .map(|n| (remaining + n.get() - 1) / n)
+                    } else {
+                        Some(0)
+                    }
+                }
+
+                let ore = wait_for(self.store.ore, cost.ore, self.production.ore)?;
+                let clay = wait_for(self.store.clay, cost.clay, self.production.clay)?;
+                let obsidian =
+                    wait_for(self.store.obsidian, cost.obsidian, self.production.obsidian)?;
+                let max_wait = usize::max(ore, usize::max(clay, obsidian)) + 1;
+                (self.time + max_wait <= 24).then_some(max_wait)
+            }
+
+            /// return the next state in which we build a robot
+            fn build(&self, cost: Vector, produces: Vector) -> Option<(Self, usize)> {
+                self.wait_for(cost).map(|time_waiting| {
+                    (
+                        State {
+                            time: self.time + time_waiting,
+                            store: self.store + self.production * time_waiting - cost,
+                            production: self.production + produces,
+                        },
+                        24 * time_waiting - (24 - self.time - time_waiting) * produces.geode,
+                    )
+                })
+            }
+        }
+
+        // we can only build 1 robot each minute. So we don't need more production than we can use in a minute
+        let max_ore_robots =
+            usize::max(self.clay.ore, usize::max(self.obsidian.ore, self.geode.ore));
+        let max_clay_robots = self.obsidian.clay;
+        let max_obsidian_robots = self.geode.obsidian;
 
         let res = dijkstra(
             &State {
                 time: 0,
-                ore: 0,
-                clay: 0,
-                obsidian: 0,
-                geodes: 0,
-                ore_robots: 1,
-                clay_robots: 0,
-                obsidian_robots: 0,
-                geode_robots: 0,
+                store: Default::default(),
+                production: Vector {
+                    ore: 1,
+                    clay: 0,
+                    obsidian: 0,
+                    geode: 0,
+                },
             },
             |&s| {
-                // let base = State {
-                //     time: s.time + 1,
-                //     ore: s.ore + s.ore_robots,
-                //     clay: s.clay + s.clay_robots,
-                //     obsidian: s.obsidian + s.obsidian_robots,
-                //     geodes: s.geodes + s.geode_robots,
-                //     ..*s
-                // };
+                // should we build an obsidian robot
+                let geode_robot = s.build(
+                    self.geode,
+                    Vector {
+                        geode: 1,
+                        ..<_>::default()
+                    },
+                );
 
-                // let cost = 24 - s.geode_robots;
+                // should we build an obsidian robot
+                let obsidian_robot = if s.production.obsidian < max_obsidian_robots {
+                    // if we can build an obsidian robot at some point, add it to the list
+                    s.build(
+                        self.obsidian,
+                        Vector {
+                            obsidian: 1,
+                            ..<_>::default()
+                        },
+                    )
+                } else {
+                    None
+                };
 
-                // build a robot now
-                // needs to be lazy to avoid underflows
-                #[allow(clippy::unnecessary_lazy_evaluations)]
-                let build_robots = [
-                    (s.ore >= self.ore).then(|| State {
-                        ore_robots: s.ore_robots + 1,
-                        ore: s.ore - self.ore,
-                        ..s
-                    }),
-                    (s.ore >= self.clay).then(|| State {
-                        clay_robots: s.clay_robots + 1,
-                        ore: s.ore - self.clay,
-                        ..s
-                    }),
-                    (s.ore >= self.obsidian.0 && s.clay >= self.obsidian.1).then(|| State {
-                        obsidian_robots: s.obsidian_robots + 1,
-                        ore: s.ore - self.obsidian.0,
-                        clay: s.clay - self.obsidian.1,
-                        ..s
-                    }),
-                    (s.ore >= self.geode.0 && s.obsidian >= self.geode.1).then(|| State {
-                        geode_robots: s.geode_robots + 1,
-                        ore: s.ore - self.geode.0,
-                        obsidian: s.obsidian - self.geode.1,
-                        ..s
-                    }),
-                ];
+                // should we build a clay robot
+                let clay_robot = if s.production.clay < max_clay_robots {
+                    // if we can build a clay robot at some point, add it to the list
+                    s.build(
+                        self.clay,
+                        Vector {
+                            clay: 1,
+                            ..<_>::default()
+                        },
+                    )
+                } else {
+                    None
+                };
 
-                // fast forward to building a robot
-                #[allow(clippy::unnecessary_lazy_evaluations)]
-                let ff_build_robots = [
-                    (s.ore < self.ore).then(|| State {
-                        ore_robots: s.ore_robots + 1,
-                        ore: s.ore.wrapping_sub(self.ore),
-                        time: s.time + (self.ore - s.ore) / s.ore_robots,
-                        ..s
-                    }),
-                    (s.ore < self.clay).then(|| State {
-                        clay_robots: s.clay_robots + 1,
-                        ore: s.ore.wrapping_sub(self.clay),
-                        time: s.time + (self.clay - s.ore) / s.ore_robots,
-                        ..s
-                    }),
-                    (s.ore < self.obsidian.0 && s.clay >= self.obsidian.1).then(|| State {
-                        obsidian_robots: s.obsidian_robots + 1,
-                        ore: s.ore.wrapping_sub(self.obsidian.0),
-                        clay: s.clay.wrapping_sub(self.obsidian.1),
-                        time: s.time + (self.obsidian.0 - s.ore) / s.ore_robots,
-                        ..s
-                    }),
-                    (s.ore >= self.obsidian.0 && s.clay < self.obsidian.1 && s.clay_robots > 0)
-                        .then(|| State {
-                            obsidian_robots: s.obsidian_robots + 1,
-                            ore: s.ore.wrapping_sub(self.obsidian.0),
-                            clay: s.clay.wrapping_sub(self.obsidian.1),
-                            time: s.time + (self.obsidian.1 - s.clay) / s.clay_robots,
-                            ..s
-                        }),
-                    (s.ore < self.obsidian.0 && s.clay < self.obsidian.1 && s.clay_robots > 0)
-                        .then(|| State {
-                            obsidian_robots: s.obsidian_robots + 1,
-                            ore: s.ore.wrapping_sub(self.obsidian.0),
-                            clay: s.clay.wrapping_sub(self.obsidian.1),
-                            time: s.time
-                                + usize::max(
-                                    (self.obsidian.0 - s.ore) / s.ore_robots,
-                                    (self.obsidian.1 - s.clay) / s.clay_robots,
-                                ),
-                            ..s
-                        }),
-                    (s.ore < self.geode.0 && s.obsidian >= self.geode.1).then(|| State {
-                        geode_robots: s.geode_robots + 1,
-                        ore: s.ore.wrapping_sub(self.geode.0),
-                        obsidian: s.obsidian.wrapping_sub(self.geode.1),
-                        time: s.time + (self.geode.0 - s.ore) / s.ore_robots,
-                        ..s
-                    }),
-                    (s.ore >= self.geode.0 && s.obsidian < self.geode.1 && s.obsidian_robots > 0)
-                        .then(|| State {
-                            geode_robots: s.geode_robots + 1,
-                            ore: s.ore.wrapping_sub(self.geode.0),
-                            obsidian: s.obsidian.wrapping_sub(self.geode.1),
-                            time: s.time + (self.geode.1 - s.obsidian) / s.obsidian_robots,
-                            ..s
-                        }),
-                    (s.ore < self.geode.0 && s.obsidian < self.geode.1 && s.obsidian_robots > 0)
-                        .then(|| State {
-                            geode_robots: s.geode_robots + 1,
-                            ore: s.ore.wrapping_sub(self.geode.0),
-                            obsidian: s.obsidian.wrapping_sub(self.geode.1),
-                            time: s.time
-                                + usize::max(
-                                    (self.geode.0 - s.ore) / s.ore_robots,
-                                    (self.geode.1 - s.obsidian) / s.obsidian_robots,
-                                ),
-                            ..s
-                        }),
-                ];
+                // should we build an ore robot
+                let ore_robot = if s.production.ore < max_ore_robots {
+                    // if we can build an ore robot at some point, add it to the list
+                    s.build(
+                        self.ore,
+                        Vector {
+                            ore: 1,
+                            ..<_>::default()
+                        },
+                    )
+                } else {
+                    None
+                };
 
-                build_robots
+                // do nothing forever
+                let do_nothing = {
+                    let time_waiting = 24 - s.time;
+                    std::iter::once((
+                        State {
+                            time: 24,
+                            store: s.store + s.production * time_waiting,
+                            production: s.production,
+                        },
+                        24 * time_waiting,
+                    ))
+                };
+
+                geode_robot
                     .into_iter()
-                    .chain(ff_build_robots)
-                    .flatten()
-                    .map(move |s1| {
-                        let t = s1.time - s.time + 1;
-                        (
-                            State {
-                                time: s1.time + 1,
-                                ore: s.ore.wrapping_add(s.ore_robots * t),
-                                clay: s.clay.wrapping_add(s.clay_robots * t),
-                                obsidian: s.obsidian.wrapping_add(s.obsidian_robots * t),
-                                geodes: s.geodes.wrapping_add(s.geode_robots * t),
-                                ..s1
-                            },
-                            (24 - s.geode_robots) * t,
-                        )
-                    })
+                    .chain(obsidian_robot)
+                    .chain(clay_robot)
+                    .chain(ore_robot)
+                    .chain(do_nothing)
             },
-            |s| s.time == 23,
+            |s| s.time == 24,
         )
         .unwrap();
 
-        let mut count = 0;
-        for i in res.0 {
-            dbg!(i);
-            count += i.geode_robots;
-        }
-        dbg!(count);
-
-        // 24 * 24 - dbg!(res.1)
-        count
+        24 * 24 - res.1
     }
 }
 
