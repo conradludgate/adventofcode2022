@@ -5,7 +5,7 @@ use arrayvec::ArrayVec;
 use nom::{bytes::complete::tag, IResult, Parser};
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Solution{
+pub struct Solution {
     map: &'static str,
     sections: ArrayVec<Section, 6>,
 }

@@ -86,7 +86,7 @@ impl ChallengeParser for Solution {
                 duplicate.insert(point);
             }
             if duplicate.len() == len {
-                break
+                break;
             }
 
             for point in considered.drain() {
@@ -134,11 +134,13 @@ impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
     type Output1 = usize;
-    fn part_one(self) -> Self::Output1 { self.0 }
+    fn part_one(self) -> Self::Output1 {
+        self.0
+    }
 
     type Output2 = usize;
     fn part_two(self) -> Self::Output2 {
-    self.1
+        self.1
     }
 }
 

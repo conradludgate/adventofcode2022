@@ -1,8 +1,8 @@
-use std::{num::NonZeroUsize, ops};
+use std::{num::NonZeroU16, ops};
 
 use aoc::{Challenge, Parser as ChallengeParser};
 use nom::IResult;
-use pathfinding::prelude::dijkstra;
+use pathfinding::prelude::astar;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Blueprint {
@@ -14,10 +14,10 @@ pub struct Blueprint {
 
 #[derive(Debug, PartialEq, Clone, Copy, Default, Hash, Eq)]
 struct Vector {
-    ore: usize,
-    clay: usize,
-    obsidian: usize,
-    geode: usize,
+    ore: u16,
+    clay: u16,
+    obsidian: u16,
+    geode: u16,
 }
 
 impl ops::Add for Vector {
@@ -44,10 +44,10 @@ impl ops::Sub for Vector {
         }
     }
 }
-impl ops::Mul<usize> for Vector {
+impl ops::Mul<u16> for Vector {
     type Output = Self;
 
-    fn mul(self, rhs: usize) -> Self::Output {
+    fn mul(self, rhs: u16) -> Self::Output {
         Self {
             ore: self.ore * rhs,
             clay: self.clay * rhs,
@@ -99,58 +99,55 @@ impl ChallengeParser for Solution {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
+struct State {
+    time: u16,
+    store: Vector,
+    production: Vector,
+}
+
+impl State {
+    /// what's the minimum time we should wait until we can afford the cost and build the robot
+    fn wait_for(&self, cost: Vector, until: u16) -> Option<u16> {
+        fn wait_for(current: u16, cost: u16, production_rate: u16) -> Option<u16> {
+            let remaining = cost.saturating_sub(current);
+            if remaining > 0 {
+                NonZeroU16::new(production_rate).map(|n| (remaining + n.get() - 1) / n)
+            } else {
+                Some(0)
+            }
+        }
+
+        let ore = wait_for(self.store.ore, cost.ore, self.production.ore)?;
+        let clay = wait_for(self.store.clay, cost.clay, self.production.clay)?;
+        let obsidian = wait_for(self.store.obsidian, cost.obsidian, self.production.obsidian)?;
+        let max_wait = u16::max(ore, u16::max(clay, obsidian)) + 1;
+        (self.time + max_wait <= until).then_some(max_wait)
+    }
+
+    /// return the next state in which we build a robot
+    fn build(&self, cost: Vector, produces: Vector, until: u16) -> Option<(Self, u16)> {
+        self.wait_for(cost, until).map(|time_waiting| {
+            (
+                State {
+                    time: self.time + time_waiting,
+                    store: self.store + self.production * time_waiting - cost,
+                    production: self.production + produces,
+                },
+                until * time_waiting - (until - self.time - time_waiting) * produces.geode,
+            )
+        })
+    }
+}
+
 impl Blueprint {
-    fn solve(self) -> usize {
-        #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
-        struct State {
-            time: usize,
-            store: Vector,
-            production: Vector,
-        }
-
-        impl State {
-            /// what's the minimum time we should wait until we can afford the cost and build the robot
-            fn wait_for(&self, cost: Vector) -> Option<usize> {
-                fn wait_for(current: usize, cost: usize, production_rate: usize) -> Option<usize> {
-                    let remaining = cost.saturating_sub(current);
-                    if remaining > 0 {
-                        NonZeroUsize::new(production_rate)
-                            .map(|n| (remaining + n.get() - 1) / n)
-                    } else {
-                        Some(0)
-                    }
-                }
-
-                let ore = wait_for(self.store.ore, cost.ore, self.production.ore)?;
-                let clay = wait_for(self.store.clay, cost.clay, self.production.clay)?;
-                let obsidian =
-                    wait_for(self.store.obsidian, cost.obsidian, self.production.obsidian)?;
-                let max_wait = usize::max(ore, usize::max(clay, obsidian)) + 1;
-                (self.time + max_wait <= 24).then_some(max_wait)
-            }
-
-            /// return the next state in which we build a robot
-            fn build(&self, cost: Vector, produces: Vector) -> Option<(Self, usize)> {
-                self.wait_for(cost).map(|time_waiting| {
-                    (
-                        State {
-                            time: self.time + time_waiting,
-                            store: self.store + self.production * time_waiting - cost,
-                            production: self.production + produces,
-                        },
-                        24 * time_waiting - (24 - self.time - time_waiting) * produces.geode,
-                    )
-                })
-            }
-        }
-
+    fn solve(self, until: u16) -> u16 {
         // we can only build 1 robot each minute. So we don't need more production than we can use in a minute
-        let max_ore_robots =
-            usize::max(self.clay.ore, usize::max(self.obsidian.ore, self.geode.ore));
+        let max_ore_robots = u16::max(self.clay.ore, u16::max(self.obsidian.ore, self.geode.ore));
         let max_clay_robots = self.obsidian.clay;
         let max_obsidian_robots = self.geode.obsidian;
 
-        let res = dijkstra(
+        let res = astar(
             &State {
                 time: 0,
                 store: Default::default(),
@@ -169,6 +166,7 @@ impl Blueprint {
                         geode: 1,
                         ..<_>::default()
                     },
+                    until,
                 );
 
                 // should we build an obsidian robot
@@ -180,6 +178,7 @@ impl Blueprint {
                             obsidian: 1,
                             ..<_>::default()
                         },
+                        until,
                     )
                 } else {
                     None
@@ -194,6 +193,7 @@ impl Blueprint {
                             clay: 1,
                             ..<_>::default()
                         },
+                        until,
                     )
                 } else {
                     None
@@ -208,22 +208,29 @@ impl Blueprint {
                             ore: 1,
                             ..<_>::default()
                         },
+                        until,
                     )
                 } else {
                     None
                 };
 
                 // do nothing forever
-                let do_nothing = {
-                    let time_waiting = 24 - s.time;
-                    std::iter::once((
+                let do_nothing = if geode_robot.is_none()
+                    && obsidian_robot.is_none()
+                    && clay_robot.is_none()
+                    && ore_robot.is_none()
+                {
+                    let time_waiting = until - s.time;
+                    Some((
                         State {
-                            time: 24,
+                            time: until,
                             store: s.store + s.production * time_waiting,
                             production: s.production,
                         },
-                        24 * time_waiting,
+                        until * time_waiting,
                     ))
+                } else {
+                    None
                 };
 
                 geode_robot
@@ -233,29 +240,38 @@ impl Blueprint {
                     .chain(ore_robot)
                     .chain(do_nothing)
             },
-            |s| s.time == 24,
+            |s| {
+                let time_waiting = until - s.time;
+                let goedes = time_waiting * (time_waiting + 1) / 2;
+                until * time_waiting - goedes
+            },
+            |s| s.time == until,
         )
         .unwrap();
 
-        24 * 24 - res.1
+        until * until - res.1
     }
 }
 
 impl Challenge for Solution {
     const NAME: &'static str = env!("CARGO_PKG_NAME");
 
-    type Output1 = usize;
+    type Output1 = u16;
     fn part_one(self) -> Self::Output1 {
         let mut sum = 0;
         for (i, bp) in self.0.into_iter().enumerate() {
-            sum += (i + 1) * bp.solve()
+            sum += (i as u16 + 1) * bp.solve(24)
         }
         sum
     }
 
-    type Output2 = usize;
+    type Output2 = u16;
     fn part_two(self) -> Self::Output2 {
-        0
+        let mut prod = 1;
+        for bp in self.0.into_iter().take(3) {
+            prod *= bp.solve(32)
+        }
+        prod
     }
 }
 
@@ -283,6 +299,6 @@ Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsid
     #[test]
     fn part_two() {
         let output = Solution::parse(INPUT).unwrap().1;
-        assert_eq!(output.part_two(), 0);
+        assert_eq!(output.part_two(), 3472);
     }
 }
